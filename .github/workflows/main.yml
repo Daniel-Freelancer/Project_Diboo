@@ -1,79 +1,47 @@
-name: Check Cloud Tools
+name: Install Blender and FFmpeg
 
 on:
   workflow_dispatch:
 
 jobs:
-  check-tools:
+  install-tools:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check Git
+      - name: Update package list
         run: |
-          echo "===== GIT ====="
-          git --version
-          echo ""
+          sudo apt-get update
 
-      - name: Check Python
+      - name: Install Blender and FFmpeg
         run: |
-          echo "===== PYTHON ====="
-          python3 --version
-          pip3 --version
-          echo ""
-
-      - name: Check FFmpeg
-        run: |
-          echo "===== FFMPEG ====="
-          if command -v ffmpeg >/dev/null 2>&1; then
-            ffmpeg -version | head -n 1
-            echo "FFmpeg: AVAILABLE"
-          else
-            echo "FFmpeg: NOT AVAILABLE"
-          fi
-          echo ""
+          sudo apt-get install -y blender ffmpeg
 
       - name: Check Blender
         run: |
           echo "===== BLENDER ====="
-          if command -v blender >/dev/null 2>&1; then
-            blender --version | head -n 3
-            echo "Blender: AVAILABLE"
-          else
-            echo "Blender: NOT AVAILABLE"
-          fi
-          echo ""
+          blender --version
+          echo "Blender installation: OK"
 
-      - name: Check Node
+      - name: Check FFmpeg
         run: |
-          echo "===== NODE ====="
-          if command -v node >/dev/null 2>&1; then
-            node --version
-            echo "Node: AVAILABLE"
-          else
-            echo "Node: NOT AVAILABLE"
-          fi
-          echo ""
+          echo "===== FFMPEG ====="
+          ffmpeg -version | head -n 3
+          echo "FFmpeg installation: OK"
 
-      - name: Check available disk
-        run: |
-          echo "===== DISK ====="
-          df -h /
-          echo ""
-
-      - name: Check memory
-        run: |
-          echo "===== MEMORY ====="
-          free -h
-          echo ""
-
-      - name: Check CPU
+      - name: Check final resources
         run: |
           echo "===== CPU ====="
           nproc
           echo ""
 
-      - name: Finished
-        run: |
+          echo "===== MEMORY ====="
+          free -h
+          echo ""
+
+          echo "===== DISK ====="
+          df -h /
+          echo ""
+
           echo "================================"
-          echo "CLOUD TOOL CHECK FINISHED"
+          echo "INSTALLATION TEST FINISHED"
           echo "================================"
