@@ -13,7 +13,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/diboo-tools
-          key: diboo-tools-blender-4.0.2-ffmpeg-6.1.1-v1
+          key: diboo-tools-blender-4.0.2-ffmpeg-6.1.1-v2
 
       - name: Install tools if cache is missing
         if: steps.tools-cache.outputs.cache-hit != 'true'
@@ -25,35 +25,44 @@ jobs:
           echo "Installing Blender and FFmpeg..."
 
           sudo apt-get update
+
           sudo apt-get install -y \
             blender \
             ffmpeg \
             libegl1 \
             libgl1
 
-          mkdir -p ~/diboo-tools/blender
-          mkdir -p ~/diboo-tools/ffmpeg
+          mkdir -p ~/diboo-tools/bin
 
-          cp -a /usr/bin/blender ~/diboo-tools/blender/
-          cp -a /usr/bin/ffmpeg ~/diboo-tools/ffmpeg/
-          cp -a /usr/bin/ffprobe ~/diboo-tools/ffmpeg/
+          cp /usr/bin/blender ~/diboo-tools/bin/blender
+          cp /usr/bin/ffmpeg ~/diboo-tools/bin/ffmpeg
+          cp /usr/bin/ffprobe ~/diboo-tools/bin/ffprobe
 
-          echo "Tools copied to cache directory."
+          echo "Tools copied to cache."
 
-      - name: Check tool cache
+      - name: Restore tools to PATH
         run: |
-          echo "===== CACHE STATUS ====="
-          echo "Cache hit: ${{ steps.tools-cache.outputs.cache-hit }}"
-          echo ""
+          set -e
 
+          mkdir -p "$HOME/diboo-tools/bin"
+
+          echo "$HOME/diboo-tools/bin" >> "$GITHUB_PATH"
+
+          echo "===== TOOL PATH ====="
+          echo "$HOME/diboo-tools/bin"
+
+      - name: Check Blender
+        run: |
           echo "===== BLENDER ====="
           blender --version
-          echo ""
 
+      - name: Check FFmpeg
+        run: |
           echo "===== FFMPEG ====="
           ffmpeg -version | head -n 3
-          echo ""
 
+      - name: Check FFprobe
+        run: |
           echo "===== FFPROBE ====="
           ffprobe -version | head -n 3
 
@@ -61,7 +70,6 @@ jobs:
         run: |
           cat > test.py <<'PY'
           import bpy
-          import math
 
           bpy.ops.object.select_all(action='SELECT')
           bpy.ops.object.delete(use_global=False)
@@ -93,6 +101,7 @@ jobs:
           )
 
           ball = bpy.context.object
+
           bpy.ops.object.shade_smooth()
 
           bpy.ops.object.camera_add(
@@ -111,6 +120,7 @@ jobs:
           )
 
           light = bpy.context.object
+
           light.data.energy = 1200
           light.data.shape = 'DISK'
           light.data.size = 5
