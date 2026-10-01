@@ -1,10 +1,10 @@
-name: Blender Render Benchmark
+name: Blender Render Diagnostic
 
 on:
   workflow_dispatch:
 
 jobs:
-  blender-benchmark:
+  blender-diagnostic:
     runs-on: ubuntu-latest
 
     steps:
@@ -15,7 +15,7 @@ jobs:
 
       - name: Create Blender test script
         run: |
-          cat > benchmark.py <<'PY'
+          cat > test.py <<'PY'
           import bpy
           import math
 
@@ -23,23 +23,24 @@ jobs:
           bpy.ops.object.select_all(action='SELECT')
           bpy.ops.object.delete(use_global=False)
 
-          # Vertical resolution
           scene = bpy.context.scene
+
+          # Vertical test resolution
           scene.render.resolution_x = 540
           scene.render.resolution_y = 960
           scene.render.resolution_percentage = 100
 
-          # Animation
-          scene.render.fps = 30
-          scene.frame_start = 1
-          scene.frame_end = 150
+          # One frame only
+          scene.frame_set(1)
 
-          # Render settings
+          # Eevee
           scene.render.engine = 'BLENDER_EEVEE_NEXT'
+
+          # PNG output
           scene.render.image_settings.file_format = 'PNG'
 
           # World
-          world = bpy.data.worlds.new("World")
+          world = bpy.data.worlds.new("TestWorld")
           scene.world = world
           world.color = (0.08, 0.08, 0.08)
 
@@ -49,7 +50,7 @@ jobs:
               location=(0, 0, 0)
           )
 
-          # Main object
+          # Ball
           bpy.ops.mesh.primitive_uv_sphere_add(
               segments=32,
               ring_count=16,
@@ -67,12 +68,8 @@ jobs:
           camera = bpy.context.object
           scene.camera = camera
 
-          # Point camera toward ball
-          def look_at(obj, target):
-              direction = target - obj.location
-              obj.rotation_euler = direction.to_track_quat('-Z', 'Y').to_euler()
-
-          look_at(camera, ball.location)
+          direction = ball.location - camera.location
+          camera.rotation_euler = direction.to_track_quat('-Z', 'Y').to_euler()
 
           # Light
           bpy.ops.object.light_add(
@@ -85,61 +82,42 @@ jobs:
           light.data.shape = 'DISK'
           light.data.size = 5
 
-          look_at(light, ball.location)
+          direction = ball.location - light.location
+          light.rotation_euler = direction.to_track_quat('-Z', 'Y').to_euler()
 
-          # Animation
-          ball.location.x = -2
-          ball.keyframe_insert(
-              data_path="location",
-              frame=1
-          )
-
-          ball.location.x = 2
-          ball.keyframe_insert(
-              data_path="location",
-              frame=150
-          )
-
-          # Output
-          scene.render.filepath = "/tmp/benchmark/frame_"
-
-          print("BENCHMARK SCENE READY")
-          print("Frames:", scene.frame_end)
-          print(
-              "Resolution:",
-              scene.render.resolution_x,
-              "x",
-              scene.render.resolution_y
-          )
-          print("FPS:", scene.render.fps)
+          print("TEST SCENE CREATED")
+          print("Resolution:", scene.render.resolution_x, "x", scene.render.resolution_y)
+          print("Frame:", scene.frame_current)
+          print("Engine:", scene.render.engine)
           PY
 
       - name: Create output directory
         run: |
           mkdir -p /tmp/benchmark
 
-      - name: Render benchmark
+      - name: Render ONE frame
         run: |
-          /usr/bin/time -v blender \
+          blender \
             -b \
-            --python benchmark.py \
-            -o /tmp/benchmark/frame_ \
+            --python test.py \
+            -o /tmp/benchmark/test_ \
             -F PNG \
-            -f 1-150
+            -f 1
 
-      - name: Inspect rendered frames
+      - name: Check output
         run: |
-          echo "===== RENDERED FILES ====="
+          echo "================================"
+          echo "OUTPUT CHECK"
+          echo "================================"
+
+          echo ""
+          echo "Files produced:"
           find /tmp/benchmark -maxdepth 1 -type f -printf '%f\n' | sort
-          echo ""
-          echo "===== FILE COUNT ====="
-          find /tmp/benchmark -maxdepth 1 -type f | wc -l
-          echo ""
-          echo "===== DIRECTORY ====="
-          ls -lah /tmp/benchmark
 
-      - name: Finished
-        run: |
-          echo "================================"
-          echo "FRAME INSPECTION FINISHED"
-          echo "================================"
+          echo ""
+          echo "File count:"
+          find /tmp/benchmark -maxdepth 1 -type f | wc -l
+
+          echo ""
+          echo "Directory:"
+          ls -lah /tmp/benchmark
