@@ -1,47 +1,148 @@
-name: Install Blender and FFmpeg
+name: Blender Render Benchmark
 
 on:
   workflow_dispatch:
 
 jobs:
-  install-tools:
+  blender-benchmark:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Update package list
-        run: |
-          sudo apt-get update
-
       - name: Install Blender and FFmpeg
         run: |
+          sudo apt-get update
           sudo apt-get install -y blender ffmpeg
 
-      - name: Check Blender
+      - name: Create Blender test script
         run: |
-          echo "===== BLENDER ====="
-          blender --version
-          echo "Blender installation: OK"
+          cat > benchmark.py <<'PY'
+          import bpy
+          import math
 
-      - name: Check FFmpeg
+          # Clear scene
+          bpy.ops.object.select_all(action='SELECT')
+          bpy.ops.object.delete(use_global=False)
+
+          # Vertical resolution
+          scene = bpy.context.scene
+          scene.render.resolution_x = 540
+          scene.render.resolution_y = 960
+          scene.render.resolution_percentage = 100
+
+          # Short benchmark
+          scene.render.fps = 30
+          scene.frame_start = 1
+          scene.frame_end = 150
+
+          # Render settings
+          scene.render.engine = 'BLENDER_EEVEE_NEXT'
+          scene.render.image_settings.file_format = 'PNG'
+
+          # World
+          world = bpy.data.worlds.new("World")
+          scene.world = world
+          world.color = (0.08, 0.08, 0.08)
+
+          # Ground
+          bpy.ops.mesh.primitive_plane_add(size=20, location=(0, 0, 0))
+          ground = bpy.context.object
+
+          # Main object
+          bpy.ops.mesh.primitive_uv_sphere_add(
+              segments=32,
+              ring_count=16,
+              location=(0, 0, 1)
+          )
+          ball = bpy.context.object
+
+          # Slightly cartoon-like smooth surface
+          bpy.ops.object.shade_smooth()
+
+          # Camera
+          bpy.ops.object.camera_add(
+              location=(0, -8, 4),
+              rotation=(math.radians(72), 0, 0)
+          )
+          camera = bpy.context.object
+          scene.camera = camera
+
+          # Point camera toward ball
+          def look_at(obj, target):
+              direction = target - obj.location
+              obj.rotation_euler = direction.to_track_quat('-Z', 'Y').to_euler()
+
+          look_at(camera, ball.location)
+
+          # Light
+          bpy.ops.object.light_add(
+              type='AREA',
+              location=(0, -3, 6)
+          )
+          light = bpy.context.object
+          light.data.energy = 1200
+          light.data.shape = 'DISK'
+          light.data.size = 5
+
+          look_at(light, ball.location)
+
+          # Animation
+          ball.location.x = -2
+          ball.keyframe_insert(
+              data_path="location",
+              frame=1
+          )
+
+          ball.location.x = 2
+          ball.keyframe_insert(
+              data_path="location",
+              frame=150
+          )
+
+          # Output
+          scene.render.filepath = "/tmp/benchmark/frame_"
+
+          print("BENCHMARK SCENE READY")
+          print("Frames:", scene.frame_end)
+          print("Resolution:", scene.render.resolution_x, "x", scene.render.resolution_y)
+          print("FPS:", scene.render.fps)
+          PY
+
+      - name: Create output directory
         run: |
-          echo "===== FFMPEG ====="
-          ffmpeg -version | head -n 3
-          echo "FFmpeg installation: OK"
+          mkdir -p /tmp/benchmark
 
-      - name: Check final resources
+      - name: Render benchmark
         run: |
-          echo "===== CPU ====="
-          nproc
-          echo ""
+          /usr/bin/time -v blender \
+            -b \
+            --python benchmark.py \
+            -o /tmp/benchmark/frame_ \
+            -F PNG \
+            -f 1-150
 
-          echo "===== MEMORY ====="
-          free -h
-          echo ""
+      - name: Encode benchmark video
+        run: |
+          ffmpeg -y \
+            -framerate 30 \
+            -i /tmp/benchmark/frame_%04d.png \
+            -c:v libx264 \
+            -pix_fmt yuv420p \
+            /tmp/benchmark/benchmark.mp4
 
-          echo "===== DISK ====="
-          df -h /
-          echo ""
-
+      - name: Show benchmark information
+        run: |
           echo "================================"
-          echo "INSTALLATION TEST FINISHED"
+          echo "BENCHMARK COMPLETE"
           echo "================================"
+          echo ""
+          echo "VIDEO:"
+          ffprobe -v error \
+            -show_entries format=duration,size \
+            -of default=noprint_wrappers=1 \
+            /tmp/benchmark/benchmark.mp4
+          echo ""
+          echo "FRAME COUNT:"
+          find /tmp/benchmark -name "*.png" | wc -l
+          echo ""
+          echo "FINAL FILE:"
+          ls -lh /tmp/benchmark/benchmark.mp4
