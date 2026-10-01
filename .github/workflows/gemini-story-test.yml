@@ -398,3 +398,308 @@ jobs:
 
           print("story.json is valid.")
           PY
+
+
+      # ============================================================
+      # 4. CREATE BLENDER TEST SCENE FROM STORY.JSON
+      # ============================================================
+
+      - name: Generate Blender scene from story
+        run: |
+          set -e
+
+          echo "================================"
+          echo "DIBOO BLENDER SCENE GENERATOR"
+          echo "================================"
+
+          mkdir -p blender_test
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          with open(
+              "story.json",
+              "r",
+              encoding="utf-8"
+          ) as f:
+              story = json.load(f)
+
+          title = story["title"]
+          scenes = story["scenes"]
+
+          print("")
+          print("Story:")
+          print(title)
+
+          print("")
+          print("Scenes:")
+          print(len(scenes))
+
+          # --------------------------------------------------------
+          # Create Blender Python script
+          # --------------------------------------------------------
+
+          blender_script = r'''
+import bpy
+import math
+
+# ============================================================
+# PROJECT DIBOO - GEMINI STORY TEST
+# ============================================================
+
+# Clear default scene
+bpy.ops.object.select_all(action='SELECT')
+bpy.ops.object.delete(use_global=False)
+
+# ============================================================
+# WORLD
+# ============================================================
+
+world = bpy.context.scene.world
+
+if world is None:
+    world = bpy.data.worlds.new("World")
+    bpy.context.scene.world = world
+
+world.use_nodes = True
+
+background = world.node_tree.nodes.get("Background")
+
+if background:
+    background.inputs["Color"].default_value = (
+        0.04,
+        0.06,
+        0.10,
+        1.0
+    )
+
+    background.inputs["Strength"].default_value = 0.4
+
+
+# ============================================================
+# GROUND
+# ============================================================
+
+bpy.ops.mesh.primitive_plane_add(
+    size=20,
+    location=(0, 0, 0)
+)
+
+ground = bpy.context.object
+ground.name = "DIBOO_Ground"
+
+ground_mat = bpy.data.materials.new(
+    "DIBOO_Ground_Material"
+)
+
+ground_mat.diffuse_color = (
+    0.08,
+    0.45,
+    0.12,
+    1.0
+)
+
+ground.data.materials.append(ground_mat)
+
+
+# ============================================================
+# SPHERE
+# ============================================================
+
+bpy.ops.mesh.primitive_uv_sphere_add(
+    segments=32,
+    ring_count=16,
+    radius=1.0,
+    location=(0, 0, 1)
+)
+
+sphere = bpy.context.object
+sphere.name = "DIBOO_Main_Object"
+
+sphere_mat = bpy.data.materials.new(
+    "DIBOO_Main_Object_Material"
+)
+
+sphere_mat.diffuse_color = (
+    1.0,
+    0.25,
+    0.05,
+    1.0
+)
+
+sphere.data.materials.append(sphere_mat)
+
+
+# ============================================================
+# CAMERA
+# ============================================================
+
+bpy.ops.object.camera_add(
+    location=(0, -10, 5),
+    rotation=(math.radians(72), 0, 0)
+)
+
+camera = bpy.context.object
+camera.name = "DIBOO_Camera"
+
+bpy.context.scene.camera = camera
+
+camera.data.lens = 50
+
+
+# ============================================================
+# LIGHT
+# ============================================================
+
+bpy.ops.object.light_add(
+    type='AREA',
+    location=(4, -4, 8)
+)
+
+light = bpy.context.object
+light.name = "DIBOO_Key_Light"
+
+light.data.energy = 1200
+light.data.shape = 'DISK'
+light.data.size = 5
+
+
+# ============================================================
+# RENDER SETTINGS
+# ============================================================
+
+scene = bpy.context.scene
+
+scene.render.engine = 'BLENDER_EEVEE'
+
+scene.render.resolution_x = 540
+scene.render.resolution_y = 960
+scene.render.resolution_percentage = 100
+
+scene.render.image_settings.file_format = 'PNG'
+
+scene.render.filepath = "/tmp/diboo_story_test_"
+
+scene.render.film_transparent = False
+
+
+# ============================================================
+# FRAME
+# ============================================================
+
+scene.frame_start = 1
+scene.frame_end = 1
+
+scene.frame_set(1)
+
+
+# ============================================================
+# SAVE BLEND FILE
+# ============================================================
+
+bpy.ops.wm.save_as_mainfile(
+    filepath="/tmp/diboo_story_test.blend"
+)
+
+print("================================")
+print("DIBOO BLENDER SCENE CREATED")
+print("================================")
+
+print("Objects:")
+
+for obj in bpy.context.scene.objects:
+    print("-", obj.name)
+
+print("Resolution:")
+print(
+    scene.render.resolution_x,
+    "x",
+    scene.render.resolution_y
+)
+
+print("================================")
+'''
+
+          Path(
+              "blender_test/story_scene.py"
+          ).write_text(
+              blender_script,
+              encoding="utf-8"
+          )
+
+          print("")
+          print("Blender Python script created:")
+          print(
+              "blender_test/story_scene.py"
+          )
+          PY
+
+
+      # ============================================================
+      # 5. RENDER ONE FRAME
+      # ============================================================
+
+      - name: Render Blender story test
+        run: |
+          set -e
+
+          echo "================================"
+          echo "DIBOO BLENDER RENDER TEST"
+          echo "================================"
+
+          mkdir -p /tmp/diboo_render
+
+          blender \
+            -b \
+            --python blender_test/story_scene.py \
+            -o /tmp/diboo_render/frame_ \
+            -F PNG \
+            -f 1
+
+          echo ""
+          echo "================================"
+          echo "BLENDER RENDER FINISHED"
+          echo "================================"
+
+          ls -lh /tmp/diboo_render
+
+
+      # ============================================================
+      # 6. VERIFY RENDER
+      # ============================================================
+
+      - name: Verify Blender render
+        run: |
+          set -e
+
+          echo "================================"
+          echo "DIBOO RENDER VERIFICATION"
+          echo "================================"
+
+          FILE_COUNT=$(find /tmp/diboo_render \
+            -type f \
+            -name "*.png" \
+            | wc -l)
+
+          echo ""
+          echo "PNG FILE COUNT:"
+          echo "$FILE_COUNT"
+
+          if [ "$FILE_COUNT" -lt 1 ]; then
+            echo ""
+            echo "ERROR: Blender did not produce a PNG."
+            exit 1
+          fi
+
+          echo ""
+          echo "RENDER FILE:"
+          find /tmp/diboo_render \
+            -type f \
+            -name "*.png" \
+            -print
+
+          echo ""
+          echo "================================"
+          echo "DIBOO BLENDER TEST: PASSED"
+          echo "================================"
