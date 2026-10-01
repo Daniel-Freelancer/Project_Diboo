@@ -8,10 +8,54 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Install Blender and FFmpeg
+      - name: Restore tool cache
+        id: tools-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/diboo-tools
+          key: diboo-tools-blender-4.0.2-ffmpeg-6.1.1-v1
+
+      - name: Install tools if cache is missing
+        if: steps.tools-cache.outputs.cache-hit != 'true'
         run: |
+          set -e
+
+          mkdir -p ~/diboo-tools
+
+          echo "Installing Blender and FFmpeg..."
+
           sudo apt-get update
-          sudo apt-get install -y blender ffmpeg libegl1 libgl1
+          sudo apt-get install -y \
+            blender \
+            ffmpeg \
+            libegl1 \
+            libgl1
+
+          mkdir -p ~/diboo-tools/blender
+          mkdir -p ~/diboo-tools/ffmpeg
+
+          cp -a /usr/bin/blender ~/diboo-tools/blender/
+          cp -a /usr/bin/ffmpeg ~/diboo-tools/ffmpeg/
+          cp -a /usr/bin/ffprobe ~/diboo-tools/ffmpeg/
+
+          echo "Tools copied to cache directory."
+
+      - name: Check tool cache
+        run: |
+          echo "===== CACHE STATUS ====="
+          echo "Cache hit: ${{ steps.tools-cache.outputs.cache-hit }}"
+          echo ""
+
+          echo "===== BLENDER ====="
+          blender --version
+          echo ""
+
+          echo "===== FFMPEG ====="
+          ffmpeg -version | head -n 3
+          echo ""
+
+          echo "===== FFPROBE ====="
+          ffprobe -version | head -n 3
 
       - name: Create Blender test script
         run: |
@@ -19,38 +63,29 @@ jobs:
           import bpy
           import math
 
-          # Clear scene
           bpy.ops.object.select_all(action='SELECT')
           bpy.ops.object.delete(use_global=False)
 
           scene = bpy.context.scene
 
-          # Vertical test resolution
           scene.render.resolution_x = 540
           scene.render.resolution_y = 960
           scene.render.resolution_percentage = 100
 
-          # One frame only
           scene.frame_set(1)
 
-          # Eevee
           scene.render.engine = 'BLENDER_EEVEE'
-
-          # PNG output
           scene.render.image_settings.file_format = 'PNG'
 
-          # World
           world = bpy.data.worlds.new("TestWorld")
           scene.world = world
           world.color = (0.08, 0.08, 0.08)
 
-          # Ground
           bpy.ops.mesh.primitive_plane_add(
               size=20,
               location=(0, 0, 0)
           )
 
-          # Ball
           bpy.ops.mesh.primitive_uv_sphere_add(
               segments=32,
               ring_count=16,
@@ -60,7 +95,6 @@ jobs:
           ball = bpy.context.object
           bpy.ops.object.shade_smooth()
 
-          # Camera
           bpy.ops.object.camera_add(
               location=(0, -8, 4)
           )
@@ -71,7 +105,6 @@ jobs:
           direction = ball.location - camera.location
           camera.rotation_euler = direction.to_track_quat('-Z', 'Y').to_euler()
 
-          # Light
           bpy.ops.object.light_add(
               type='AREA',
               location=(0, -3, 6)
