@@ -8,61 +8,42 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Restore tool cache
-        id: tools-cache
-        uses: actions/cache@v4
-        with:
-          path: ~/diboo-tools
-          key: diboo-tools-blender-4.0.2-ffmpeg-6.1.1-v2
 
-      - name: Install tools if cache is missing
-        if: steps.tools-cache.outputs.cache-hit != 'true'
+      - name: Install Blender and FFmpeg
         run: |
           set -e
 
-          mkdir -p ~/diboo-tools
-
-          echo "Installing Blender and FFmpeg..."
-
+          echo "===== UPDATING APT ====="
           sudo apt-get update
 
+          echo "===== INSTALLING TOOLS ====="
           sudo apt-get install -y \
             blender \
             ffmpeg \
             libegl1 \
-            libgl1
+            libgl1 \
+            libtbb12
 
-          mkdir -p ~/diboo-tools/bin
-
-          cp /usr/bin/blender ~/diboo-tools/bin/blender
-          cp /usr/bin/ffmpeg ~/diboo-tools/bin/ffmpeg
-          cp /usr/bin/ffprobe ~/diboo-tools/bin/ffprobe
-
-          echo "Tools copied to cache."
-
-      - name: Restore tools to PATH
-        run: |
-          set -e
-
-          mkdir -p "$HOME/diboo-tools/bin"
-
-          echo "$HOME/diboo-tools/bin" >> "$GITHUB_PATH"
-
-          echo "===== TOOL PATH ====="
-          echo "$HOME/diboo-tools/bin"
+          echo "===== INSTALLATION COMPLETE ====="
 
       - name: Check Blender
         run: |
+          set -e
+
           echo "===== BLENDER ====="
           blender --version
 
       - name: Check FFmpeg
         run: |
+          set -e
+
           echo "===== FFMPEG ====="
           ffmpeg -version | head -n 3
 
       - name: Check FFprobe
         run: |
+          set -e
+
           echo "===== FFPROBE ====="
           ffprobe -version | head -n 3
 
@@ -76,24 +57,28 @@ jobs:
 
           scene = bpy.context.scene
 
+          # Vertical 9:16 test
           scene.render.resolution_x = 540
           scene.render.resolution_y = 960
           scene.render.resolution_percentage = 100
 
-          scene.frame_set(1)
-
+          # Blender 4.0 engine
           scene.render.engine = 'BLENDER_EEVEE'
+
           scene.render.image_settings.file_format = 'PNG'
 
+          # World
           world = bpy.data.worlds.new("TestWorld")
           scene.world = world
           world.color = (0.08, 0.08, 0.08)
 
+          # Ground
           bpy.ops.mesh.primitive_plane_add(
               size=20,
               location=(0, 0, 0)
           )
 
+          # Ball
           bpy.ops.mesh.primitive_uv_sphere_add(
               segments=32,
               ring_count=16,
@@ -104,6 +89,7 @@ jobs:
 
           bpy.ops.object.shade_smooth()
 
+          # Camera
           bpy.ops.object.camera_add(
               location=(0, -8, 4)
           )
@@ -112,8 +98,12 @@ jobs:
           scene.camera = camera
 
           direction = ball.location - camera.location
-          camera.rotation_euler = direction.to_track_quat('-Z', 'Y').to_euler()
 
+          camera.rotation_euler = (
+              direction.to_track_quat('-Z', 'Y').to_euler()
+          )
+
+          # Light
           bpy.ops.object.light_add(
               type='AREA',
               location=(0, -3, 6)
@@ -126,12 +116,18 @@ jobs:
           light.data.size = 5
 
           direction = ball.location - light.location
-          light.rotation_euler = direction.to_track_quat('-Z', 'Y').to_euler()
 
+          light.rotation_euler = (
+              direction.to_track_quat('-Z', 'Y').to_euler()
+          )
+
+          print("================================")
           print("TEST SCENE CREATED")
+          print("================================")
           print("Resolution:", scene.render.resolution_x, "x", scene.render.resolution_y)
-          print("Frame:", scene.frame_current)
           print("Engine:", scene.render.engine)
+          print("Camera:", scene.camera.name)
+          print("================================")
           PY
 
       - name: Create output directory
@@ -140,6 +136,8 @@ jobs:
 
       - name: Render ONE frame
         run: |
+          set -e
+
           blender \
             -b \
             --python test.py \
@@ -147,20 +145,41 @@ jobs:
             -F PNG \
             -f 1
 
-      - name: Check output
+      - name: Check rendered output
         run: |
+          set -e
+
           echo "================================"
           echo "OUTPUT CHECK"
           echo "================================"
 
           echo ""
           echo "Files produced:"
-          find /tmp/benchmark -maxdepth 1 -type f -printf '%f\n' | sort
+          find /tmp/benchmark \
+            -maxdepth 1 \
+            -type f \
+            -printf '%f\n' | sort
 
           echo ""
           echo "File count:"
-          find /tmp/benchmark -maxdepth 1 -type f | wc -l
+          find /tmp/benchmark \
+            -maxdepth 1 \
+            -type f | wc -l
 
           echo ""
           echo "Directory:"
           ls -lah /tmp/benchmark
+
+          echo ""
+          echo "================================"
+          echo "VALIDATING RENDER"
+          echo "================================"
+
+          FILE_COUNT=$(find /tmp/benchmark -maxdepth 1 -type f | wc -l)
+
+          if [ "$FILE_COUNT" -ne 1 ]; then
+            echo "ERROR: Expected exactly 1 rendered file."
+            exit 1
+          fi
+
+          echo "Render validation: OK"
