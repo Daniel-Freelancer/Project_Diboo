@@ -9,13 +9,19 @@ jobs:
 
     steps:
 
+      # ============================================================
+      # 1. GENERATE STORY WITH GEMINI
+      # ============================================================
+
       - name: Generate structured story
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           set -e
 
-          echo "===== DIBOO STORY GENERATOR ====="
+          echo "================================"
+          echo "DIBOO STORY GENERATOR"
+          echo "================================"
 
           cat > request.json <<'JSON'
           {
@@ -86,6 +92,8 @@ jobs:
           }
           JSON
 
+          SUCCESS=false
+
           for ATTEMPT in 1 2 3 4 5
           do
             echo ""
@@ -106,7 +114,7 @@ jobs:
 
             if echo "$RESPONSE" | grep -q '"error"'; then
 
-              if echo "$RESPONSE" | grep -qE '"code": ?503|"status": ?"UNAVAILABLE"|"code": ?"service_unavailable"'; then
+              if echo "$RESPONSE" | grep -qE '"code": ?503|"status": ?"UNAVAILABLE"|service_unavailable'; then
                 echo ""
                 echo "Gemini is temporarily unavailable."
                 echo "Waiting 15 seconds before retry..."
@@ -119,36 +127,201 @@ jobs:
               exit 1
             fi
 
-            echo ""
-            echo "===== GEMINI RESPONSE RECEIVED ====="
+            SUCCESS=true
             break
           done
 
-          if echo "$RESPONSE" | grep -q '"error"'; then
+          if [ "$SUCCESS" != "true" ]; then
             echo ""
             echo "===== GEMINI FAILED AFTER 5 ATTEMPTS ====="
             exit 1
           fi
 
-      - name: Extract and validate JSON
+          echo ""
+          echo "===== GEMINI RESPONSE RECEIVED ====="
+
+
+      # ============================================================
+      # 2. EXTRACT GENERATED JSON
+      # ============================================================
+
+      - name: Extract generated story
         run: |
           set -e
 
           python3 - <<'PY'
           import json
-          import sys
 
-          with open("gemini_response.json", "r", encoding="utf-8") as f:
+          with open(
+              "gemini_response.json",
+              "r",
+              encoding="utf-8"
+          ) as f:
               response = json.load(f)
 
-          output_text = response.get("output_text")
+          print("")
+          print("================================")
+          print("SEARCHING GEMINI RESPONSE")
+          print("================================")
 
-          if not output_text:
-              raise RuntimeError(
-                  "Gemini response did not contain output_text."
+          def find_json_object(obj):
+
+              if isinstance(obj, dict):
+
+                  # Direct output_text
+                  if "output_text" in obj:
+                      value = obj["output_text"]
+
+                      if isinstance(value, str):
+                          text = value.strip()
+
+                          try:
+                              parsed = json.loads(text)
+
+                              if isinstance(parsed, dict):
+                                  return parsed
+
+                          except json.JSONDecodeError:
+                              pass
+
+                  # Common text fields
+                  for key in [
+                      "text",
+                      "content",
+                      "output",
+                      "response"
+                  ]:
+
+                      if key in obj:
+
+                          value = obj[key]
+
+                          if isinstance(value, str):
+                              text = value.strip()
+
+                              try:
+                                  parsed = json.loads(text)
+
+                                  if isinstance(parsed, dict):
+                                      return parsed
+
+                              except json.JSONDecodeError:
+                                  pass
+
+                          result = find_json_object(value)
+
+                          if result is not None:
+                              return result
+
+                  # Search everything else
+                  for value in obj.values():
+
+                      result = find_json_object(value)
+
+                      if result is not None:
+                          return result
+
+              elif isinstance(obj, list):
+
+                  for item in obj:
+
+                      result = find_json_object(item)
+
+                      if result is not None:
+                          return result
+
+              elif isinstance(obj, str):
+
+                  text = obj.strip()
+
+                  # Remove possible markdown JSON fences
+                  if text.startswith("```json"):
+                      text = text[7:]
+
+                  if text.startswith("```"):
+                      text = text[3:]
+
+                  if text.endswith("```"):
+                      text = text[:-3]
+
+                  text = text.strip()
+
+                  try:
+                      parsed = json.loads(text)
+
+                      if isinstance(parsed, dict):
+                          return parsed
+
+                  except json.JSONDecodeError:
+                      pass
+
+              return None
+
+
+          story = find_json_object(response)
+
+          if story is None:
+              print("")
+              print("===== FULL GEMINI RESPONSE =====")
+              print(
+                  json.dumps(
+                      response,
+                      indent=2,
+                      ensure_ascii=False
+                  )
               )
 
-          story = json.loads(output_text)
+              raise RuntimeError(
+                  "Could not find valid story JSON in Gemini response."
+              )
+
+          with open(
+              "story.json",
+              "w",
+              encoding="utf-8"
+          ) as f:
+
+              json.dump(
+                  story,
+                  f,
+                  indent=2,
+                  ensure_ascii=False
+              )
+
+          print("")
+          print("===== GENERATED STORY JSON =====")
+
+          print(
+              json.dumps(
+                  story,
+                  indent=2,
+                  ensure_ascii=False
+              )
+          )
+
+          print("")
+          print("story.json created successfully.")
+
+
+      # ============================================================
+      # 3. VALIDATE PROJECT_DIBOO STORY
+      # ============================================================
+
+      - name: Validate Project_Diboo story
+        run: |
+          set -e
+
+          python3 - <<'PY'
+          import json
+
+          with open(
+              "story.json",
+              "r",
+              encoding="utf-8"
+          ) as f:
+
+              story = json.load(f)
+
 
           required_fields = [
               "title",
@@ -159,33 +332,56 @@ jobs:
               "scenes"
           ]
 
+
           for field in required_fields:
+
               if field not in story:
+
                   raise RuntimeError(
                       f"Missing required field: {field}"
                   )
 
+
           if story["language"].lower() != "en":
+
               raise RuntimeError(
                   "Story language is not English."
               )
 
+
           duration = story["duration_target"]
 
+
+          if not isinstance(duration, int):
+
+              raise RuntimeError(
+                  "duration_target must be an integer."
+              )
+
+
           if not 40 <= duration <= 60:
+
               raise RuntimeError(
                   f"Duration target is invalid: {duration}"
               )
 
-          if not isinstance(story["scenes"], list):
+
+          if not isinstance(
+              story["scenes"],
+              list
+          ):
+
               raise RuntimeError(
                   "Scenes must be a list."
               )
 
+
           if len(story["scenes"]) == 0:
+
               raise RuntimeError(
                   "No scenes were generated."
               )
+
 
           scene_fields = [
               "duration",
@@ -195,44 +391,55 @@ jobs:
               "sfx"
           ]
 
+
           for index, scene in enumerate(
               story["scenes"],
               start=1
           ):
+
+              if not isinstance(scene, dict):
+
+                  raise RuntimeError(
+                      f"Scene {index} is not an object."
+                  )
+
+
               for field in scene_fields:
+
                   if field not in scene:
+
                       raise RuntimeError(
                           f"Scene {index} is missing: {field}"
                       )
 
-          with open(
-              "story.json",
-              "w",
-              encoding="utf-8"
-          ) as f:
-              json.dump(
-                  story,
-                  f,
-                  indent=2,
-                  ensure_ascii=False
-              )
 
           print("")
           print("================================")
           print("DIBOO STORY VALIDATION: PASSED")
           print("================================")
           print("")
-          print("Title:", story["title"])
+
+          print("Title:")
+          print(story["title"])
+
+          print("")
+
           print(
               "Duration:",
               story["duration_target"],
               "seconds"
           )
-          print("Language:", story["language"])
+
+          print(
+              "Language:",
+              story["language"]
+          )
+
           print(
               "Scenes:",
               len(story["scenes"])
           )
+
           print("")
-          print("story.json created successfully.")
+          print("story.json is valid.")
           PY
