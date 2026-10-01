@@ -27,7 +27,9 @@ jobs:
           cat > request.json <<'JSON'
           {
             "model": "gemini-3.7-flash",
-            "input": "Create one original 3D cartoon YouTube Short story for the Project_Diboo channel. The story must be highly visual and easy to understand even without audio. Use simple objects, animals, vehicles, machines, or simple characters. Do not copy any copyrighted character, franchise, company, or protected visual style. The story must target approximately 50 seconds and must remain between 40 and 60 seconds. The narration must be in English. The story structure should contain: HOOK from 0-5 seconds, SITUATION from 5-12 seconds, PROBLEM from 12-25 seconds, ACTION from 25-40 seconds, RESOLUTION from 40-50 seconds, and PAYOFF from 50-55 seconds. The exact timing may vary while remaining between 40 and 60 seconds. Create a strong visual hook, clear cause-and-effect actions, dynamic camera movements, simple visual storytelling, and simple SFX suggestions. Return ONLY valid JSON with exactly these top-level fields: title, duration_target, language, hook, narration, scenes. Each scene must contain: duration, description, camera, action, sfx. The language field must be en."
+            "input": "Create one original 3D cartoon YouTube Short story for the Project_Diboo channel. The story must be highly visual and easy to understand even without audio. Use simple objects, animals, vehicles, machines, or simple characters. Do not copy any copyrighted character, franchise, company, or protected visual style. The story must target approximately 50 seconds and must remain between 40 and 60 seconds. The narration must be in English.
+          The story structure should contain: HOOK from 0-5 seconds, SITUATION from 5-12 seconds, PROBLEM from 12-25 seconds, ACTION from 25-40 seconds, RESOLUTION from 40-50 seconds, and PAYOFF from 50-55 seconds. The exact timing may vary while remaining between 40 and 60 seconds. Create a strong visual hook, clear cause-and-effect actions, dynamic camera movements, simple visual storytelling, and simple SFX suggestions.
+          Return ONLY valid JSON with exactly these top-level fields: title, duration_target, language, hook, narration, scenes. Each scene must contain: duration, description, camera, action, sfx. The language field must be en."
           }
           JSON
 
@@ -124,8 +126,10 @@ jobs:
                   break
 
           if not story_text:
+
               print("")
               print("===== GEMINI RESPONSE STRUCTURE =====")
+
               print(
                   json.dumps(
                       response,
@@ -181,6 +185,7 @@ jobs:
 
           print("")
           print("===== STORY JSON CREATED =====")
+
           print(
               json.dumps(
                   story,
@@ -188,6 +193,7 @@ jobs:
                   ensure_ascii=False
               )
           )
+          PY
 
 
       # ============================================================
@@ -226,7 +232,6 @@ jobs:
           for field in required_fields:
 
               if field not in story:
-
                   raise RuntimeError(
                       f"Missing required field: {field}"
                   )
@@ -372,179 +377,173 @@ jobs:
           print(len(scenes))
 
           blender_script = r'''
-import bpy
-import math
+          import bpy
+          import math
 
-# ============================================================
-# PROJECT DIBOO - GEMINI STORY TEST
-# ============================================================
+          # ============================================================
+          # PROJECT DIBOO - GEMINI STORY TEST
+          # ============================================================
 
-bpy.ops.object.select_all(action='SELECT')
-bpy.ops.object.delete(use_global=False)
+          bpy.ops.object.select_all(action='SELECT')
+          bpy.ops.object.delete(use_global=False)
 
-# ============================================================
-# WORLD
-# ============================================================
+          # ============================================================
+          # WORLD
+          # ============================================================
 
-world = bpy.context.scene.world
+          world = bpy.context.scene.world
 
-if world is None:
-    world = bpy.data.worlds.new("World")
-    bpy.context.scene.world = world
+          if world is None:
+              world = bpy.data.worlds.new("World")
+              bpy.context.scene.world = world
 
-world.use_nodes = True
+          world.use_nodes = True
 
-background = world.node_tree.nodes.get("Background")
+          background = world.node_tree.nodes.get("Background")
 
-if background:
-    background.inputs["Color"].default_value = (
-        0.04,
-        0.06,
-        0.10,
-        1.0
-    )
+          if background:
+              background.inputs["Color"].default_value = (
+                  0.04,
+                  0.06,
+                  0.10,
+                  1.0
+              )
 
-    background.inputs["Strength"].default_value = 0.4
+              background.inputs["Strength"].default_value = 0.4
 
+          # ============================================================
+          # GROUND
+          # ============================================================
 
-# ============================================================
-# GROUND
-# ============================================================
+          bpy.ops.mesh.primitive_plane_add(
+              size=20,
+              location=(0, 0, 0)
+          )
 
-bpy.ops.mesh.primitive_plane_add(
-    size=20,
-    location=(0, 0, 0)
-)
+          ground = bpy.context.object
+          ground.name = "DIBOO_Ground"
 
-ground = bpy.context.object
-ground.name = "DIBOO_Ground"
+          ground_mat = bpy.data.materials.new(
+              "DIBOO_Ground_Material"
+          )
 
-ground_mat = bpy.data.materials.new(
-    "DIBOO_Ground_Material"
-)
+          ground_mat.diffuse_color = (
+              0.08,
+              0.45,
+              0.12,
+              1.0
+          )
 
-ground_mat.diffuse_color = (
-    0.08,
-    0.45,
-    0.12,
-    1.0
-)
+          ground.data.materials.append(ground_mat)
 
-ground.data.materials.append(ground_mat)
+          # ============================================================
+          # MAIN OBJECT
+          # ============================================================
 
+          bpy.ops.mesh.primitive_uv_sphere_add(
+              segments=32,
+              ring_count=16,
+              radius=1.0,
+              location=(0, 0, 1)
+          )
 
-# ============================================================
-# MAIN OBJECT
-# ============================================================
+          sphere = bpy.context.object
+          sphere.name = "DIBOO_Main_Object"
 
-bpy.ops.mesh.primitive_uv_sphere_add(
-    segments=32,
-    ring_count=16,
-    radius=1.0,
-    location=(0, 0, 1)
-)
+          sphere_mat = bpy.data.materials.new(
+              "DIBOO_Main_Object_Material"
+          )
 
-sphere = bpy.context.object
-sphere.name = "DIBOO_Main_Object"
+          sphere_mat.diffuse_color = (
+              1.0,
+              0.25,
+              0.05,
+              1.0
+          )
 
-sphere_mat = bpy.data.materials.new(
-    "DIBOO_Main_Object_Material"
-)
+          sphere.data.materials.append(sphere_mat)
 
-sphere_mat.diffuse_color = (
-    1.0,
-    0.25,
-    0.05,
-    1.0
-)
+          # ============================================================
+          # CAMERA
+          # ============================================================
 
-sphere.data.materials.append(sphere_mat)
+          bpy.ops.object.camera_add(
+              location=(0, -10, 5),
+              rotation=(math.radians(72), 0, 0)
+          )
 
+          camera = bpy.context.object
+          camera.name = "DIBOO_Camera"
 
-# ============================================================
-# CAMERA
-# ============================================================
+          bpy.context.scene.camera = camera
 
-bpy.ops.object.camera_add(
-    location=(0, -10, 5),
-    rotation=(math.radians(72), 0, 0)
-)
+          camera.data.lens = 50
 
-camera = bpy.context.object
-camera.name = "DIBOO_Camera"
+          # ============================================================
+          # LIGHT
+          # ============================================================
 
-bpy.context.scene.camera = camera
+          bpy.ops.object.light_add(
+              type='AREA',
+              location=(4, -4, 8)
+          )
 
-camera.data.lens = 50
+          light = bpy.context.object
+          light.name = "DIBOO_Key_Light"
 
+          light.data.energy = 1200
+          light.data.shape = 'DISK'
+          light.data.size = 5
 
-# ============================================================
-# LIGHT
-# ============================================================
+          # ============================================================
+          # RENDER SETTINGS
+          # ============================================================
 
-bpy.ops.object.light_add(
-    type='AREA',
-    location=(4, -4, 8)
-)
+          scene = bpy.context.scene
 
-light = bpy.context.object
-light.name = "DIBOO_Key_Light"
+          scene.render.engine = 'BLENDER_EEVEE'
 
-light.data.energy = 1200
-light.data.shape = 'DISK'
-light.data.size = 5
+          scene.render.resolution_x = 540
+          scene.render.resolution_y = 960
+          scene.render.resolution_percentage = 100
 
+          scene.render.image_settings.file_format = 'PNG'
 
-# ============================================================
-# RENDER SETTINGS
-# ============================================================
+          scene.render.filepath = "/tmp/diboo_story_test_"
 
-scene = bpy.context.scene
+          scene.render.film_transparent = False
 
-scene.render.engine = 'BLENDER_EEVEE'
+          scene.frame_start = 1
+          scene.frame_end = 1
+          scene.frame_set(1)
 
-scene.render.resolution_x = 540
-scene.render.resolution_y = 960
-scene.render.resolution_percentage = 100
+          # ============================================================
+          # SAVE BLEND FILE
+          # ============================================================
 
-scene.render.image_settings.file_format = 'PNG'
+          bpy.ops.wm.save_as_mainfile(
+              filepath="/tmp/diboo_story_test.blend"
+          )
 
-scene.render.filepath = "/tmp/diboo_story_test_"
+          print("================================")
+          print("DIBOO BLENDER SCENE CREATED")
+          print("================================")
 
-scene.render.film_transparent = False
+          print("Objects:")
 
-scene.frame_start = 1
-scene.frame_end = 1
+          for obj in bpy.context.scene.objects:
+              print("-", obj.name)
 
-scene.frame_set(1)
+          print("Resolution:")
 
+          print(
+              scene.render.resolution_x,
+              "x",
+              scene.render.resolution_y
+          )
 
-# ============================================================
-# SAVE BLEND FILE
-# ============================================================
-
-bpy.ops.wm.save_as_mainfile(
-    filepath="/tmp/diboo_story_test.blend"
-)
-
-print("================================")
-print("DIBOO BLENDER SCENE CREATED")
-print("================================")
-
-print("Objects:")
-
-for obj in bpy.context.scene.objects:
-    print("-", obj.name)
-
-print("Resolution:")
-print(
-    scene.render.resolution_x,
-    "x",
-    scene.render.resolution_y
-)
-
-print("================================")
-'''
+          print("================================")
+          '''
 
           Path(
               "blender_test/story_scene.py"
@@ -619,12 +618,14 @@ print("================================")
 
           echo ""
           echo "RENDER FILE:"
+
           find /tmp/diboo_render \
             -type f \
             -name "*.png" \
             -print
 
           echo ""
+
           echo "================================"
           echo "DIBOO BLENDER TEST: PASSED"
           echo "================================"
