@@ -1,0 +1,42 @@
+name: Gemini API Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-gemini:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Test Gemini API
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          echo "===== GEMINI API TEST ====="
+
+          RESPONSE=$(curl -s \
+            -H "x-goog-api-key: $GEMINI_API_KEY" \
+            -H "Content-Type: application/json" \
+            -X POST \
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent" \
+            -d '{
+              "contents": [
+                {
+                  "parts": [
+                    {
+                      "text": "Reply with exactly: DIBOO GEMINI OK"
+                    }
+                  ]
+                }
+              ]
+            }')
+
+          echo "Gemini response:"
+          echo "$RESPONSE"
+
+          if echo "$RESPONSE" | grep -q "DIBOO GEMINI OK"; then
+            echo "===== GEMINI TEST PASSED ====="
+          else
+            echo "===== GEMINI TEST FAILED ====="
+            exit 1
+          fi
