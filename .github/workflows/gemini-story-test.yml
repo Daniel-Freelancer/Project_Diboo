@@ -27,9 +27,7 @@ jobs:
           cat > request.json <<'JSON'
           {
             "model": "gemini-3.7-flash",
-            "input": "Create one original 3D cartoon YouTube Short story for the Project_Diboo channel. The story must be highly visual and easy to understand even without audio. Use simple objects, animals, vehicles, machines, or simple characters. Do not copy any copyrighted character, franchise, company, or protected visual style. The story must target approximately 50 seconds and must remain between 40 and 60 seconds. The narration must be in English.
-          The story structure should contain: HOOK from 0-5 seconds, SITUATION from 5-12 seconds, PROBLEM from 12-25 seconds, ACTION from 25-40 seconds, RESOLUTION from 40-50 seconds, and PAYOFF from 50-55 seconds. The exact timing may vary while remaining between 40 and 60 seconds. Create a strong visual hook, clear cause-and-effect actions, dynamic camera movements, simple visual storytelling, and simple SFX suggestions.
-          Return ONLY valid JSON with exactly these top-level fields: title, duration_target, language, hook, narration, scenes. Each scene must contain: duration, description, camera, action, sfx. The language field must be en."
+            "input": "Create one original 3D cartoon YouTube Short story for the Project_Diboo channel. The story must be highly visual and easy to understand even without audio. Use simple objects, animals, vehicles, machines, or simple characters. Do not copy any copyrighted character, franchise, company, or protected visual style. The story must target approximately 50 seconds and must remain between 40 and 60 seconds. The narration must be in English. The story structure should contain: HOOK from 0-5 seconds, SITUATION from 5-12 seconds, PROBLEM from 12-25 seconds, ACTION from 25-40 seconds, RESOLUTION from 40-50 seconds, and PAYOFF from 50-55 seconds. The exact timing may vary while remaining between 40 and 60 seconds. Create a strong visual hook, clear cause-and-effect actions, dynamic camera movements, simple visual storytelling, and simple SFX suggestions. Return ONLY valid JSON with exactly these top-level fields: title, duration_target, language, hook, narration, scenes. duration_target MUST be a plain integer containing only the number of seconds, for example 53, never a string and never include the word seconds. Each scene must contain: duration, description, camera, action, sfx. Scene duration MUST also be a plain integer. The language field must be en."
           }
           JSON
 
@@ -206,13 +204,13 @@ jobs:
 
           python3 - <<'PY'
           import json
+          import re
 
           with open(
               "story.json",
               "r",
               encoding="utf-8"
           ) as f:
-
               story = json.load(f)
 
           print("")
@@ -232,6 +230,7 @@ jobs:
           for field in required_fields:
 
               if field not in story:
+
                   raise RuntimeError(
                       f"Missing required field: {field}"
                   )
@@ -242,13 +241,57 @@ jobs:
                   "Story language must be English (en)."
               )
 
-          duration = story["duration_target"]
+          # ------------------------------------------------------------
+          # NORMALIZE DURATION
+          # ------------------------------------------------------------
 
-          if not isinstance(duration, int):
+          raw_duration = story["duration_target"]
+
+          if isinstance(raw_duration, bool):
 
               raise RuntimeError(
-                  "duration_target must be an integer."
+                  "duration_target cannot be boolean."
               )
+
+          elif isinstance(raw_duration, int):
+
+              duration = raw_duration
+
+          elif isinstance(raw_duration, float):
+
+              duration = int(raw_duration)
+
+          elif isinstance(raw_duration, str):
+
+              match = re.search(
+                  r"\d+",
+                  raw_duration
+              )
+
+              if not match:
+
+                  raise RuntimeError(
+                      "Could not extract duration from duration_target."
+                  )
+
+              duration = int(
+                  match.group(0)
+              )
+
+          else:
+
+              raise RuntimeError(
+                  "Unsupported duration_target format."
+              )
+
+          story["duration_target"] = duration
+
+          print("")
+          print("Normalized duration:")
+          print(
+              duration,
+              "seconds"
+          )
 
           if not 40 <= duration <= 60:
 
@@ -257,9 +300,16 @@ jobs:
                   "Must be between 40 and 60 seconds."
               )
 
+          # ------------------------------------------------------------
+          # VALIDATE SCENES
+          # ------------------------------------------------------------
+
           scenes = story["scenes"]
 
-          if not isinstance(scenes, list):
+          if not isinstance(
+              scenes,
+              list
+          ):
 
               raise RuntimeError(
                   "scenes must be a list."
@@ -284,7 +334,10 @@ jobs:
               start=1
           ):
 
-              if not isinstance(scene, dict):
+              if not isinstance(
+                  scene,
+                  dict
+              ):
 
                   raise RuntimeError(
                       f"Scene {index} is not an object."
@@ -298,14 +351,68 @@ jobs:
                           f"Scene {index} is missing field: {field}"
                       )
 
-              if not isinstance(
-                  scene["duration"],
-                  int
+              scene_duration = scene["duration"]
+
+              if isinstance(
+                  scene_duration,
+                  bool
               ):
 
                   raise RuntimeError(
-                      f"Scene {index} duration must be an integer."
+                      f"Scene {index} duration cannot be boolean."
                   )
+
+              elif isinstance(
+                  scene_duration,
+                  str
+              ):
+
+                  match = re.search(
+                      r"\d+",
+                      scene_duration
+                  )
+
+                  if not match:
+
+                      raise RuntimeError(
+                          f"Scene {index} has invalid duration."
+                      )
+
+                  scene["duration"] = int(
+                      match.group(0)
+                  )
+
+              elif isinstance(
+                  scene_duration,
+                  (int, float)
+              ):
+
+                  scene["duration"] = int(
+                      scene_duration
+                  )
+
+              else:
+
+                  raise RuntimeError(
+                      f"Scene {index} duration must be numeric."
+                  )
+
+          # ------------------------------------------------------------
+          # SAVE NORMALIZED STORY
+          # ------------------------------------------------------------
+
+          with open(
+              "story.json",
+              "w",
+              encoding="utf-8"
+          ) as f:
+
+              json.dump(
+                  story,
+                  f,
+                  indent=2,
+                  ensure_ascii=False
+              )
 
           print("")
           print("================================")
@@ -314,7 +421,9 @@ jobs:
           print("")
 
           print("TITLE:")
-          print(story["title"])
+          print(
+              story["title"]
+          )
 
           print("")
 
@@ -327,12 +436,16 @@ jobs:
           print("")
 
           print("LANGUAGE:")
-          print(story["language"])
+          print(
+              story["language"]
+          )
 
           print("")
 
           print("SCENES:")
-          print(len(scenes))
+          print(
+              len(scenes)
+          )
 
           print("")
 
@@ -380,16 +493,13 @@ jobs:
           import bpy
           import math
 
-          # ============================================================
-          # PROJECT DIBOO - GEMINI STORY TEST
-          # ============================================================
+          bpy.ops.object.select_all(
+              action='SELECT'
+          )
 
-          bpy.ops.object.select_all(action='SELECT')
-          bpy.ops.object.delete(use_global=False)
-
-          # ============================================================
-          # WORLD
-          # ============================================================
+          bpy.ops.object.delete(
+              use_global=False
+          )
 
           world = bpy.context.scene.world
 
@@ -399,9 +509,12 @@ jobs:
 
           world.use_nodes = True
 
-          background = world.node_tree.nodes.get("Background")
+          background = world.node_tree.nodes.get(
+              "Background"
+          )
 
           if background:
+
               background.inputs["Color"].default_value = (
                   0.04,
                   0.06,
@@ -410,10 +523,6 @@ jobs:
               )
 
               background.inputs["Strength"].default_value = 0.4
-
-          # ============================================================
-          # GROUND
-          # ============================================================
 
           bpy.ops.mesh.primitive_plane_add(
               size=20,
@@ -434,11 +543,9 @@ jobs:
               1.0
           )
 
-          ground.data.materials.append(ground_mat)
-
-          # ============================================================
-          # MAIN OBJECT
-          # ============================================================
+          ground.data.materials.append(
+              ground_mat
+          )
 
           bpy.ops.mesh.primitive_uv_sphere_add(
               segments=32,
@@ -461,15 +568,17 @@ jobs:
               1.0
           )
 
-          sphere.data.materials.append(sphere_mat)
-
-          # ============================================================
-          # CAMERA
-          # ============================================================
+          sphere.data.materials.append(
+              sphere_mat
+          )
 
           bpy.ops.object.camera_add(
               location=(0, -10, 5),
-              rotation=(math.radians(72), 0, 0)
+              rotation=(
+                  math.radians(72),
+                  0,
+                  0
+              )
           )
 
           camera = bpy.context.object
@@ -478,10 +587,6 @@ jobs:
           bpy.context.scene.camera = camera
 
           camera.data.lens = 50
-
-          # ============================================================
-          # LIGHT
-          # ============================================================
 
           bpy.ops.object.light_add(
               type='AREA',
@@ -494,10 +599,6 @@ jobs:
           light.data.energy = 1200
           light.data.shape = 'DISK'
           light.data.size = 5
-
-          # ============================================================
-          # RENDER SETTINGS
-          # ============================================================
 
           scene = bpy.context.scene
 
@@ -516,10 +617,6 @@ jobs:
           scene.frame_start = 1
           scene.frame_end = 1
           scene.frame_set(1)
-
-          # ============================================================
-          # SAVE BLEND FILE
-          # ============================================================
 
           bpy.ops.wm.save_as_mainfile(
               filepath="/tmp/diboo_story_test.blend"
