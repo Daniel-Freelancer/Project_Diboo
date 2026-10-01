@@ -105,15 +105,6 @@ jobs:
 
           story_text = None
 
-          # --------------------------------------------------------
-          # Interactions API structure:
-          #
-          # steps
-          #   model_output
-          #     content
-          #       text
-          # --------------------------------------------------------
-
           for step in response.get("steps", []):
 
               if step.get("type") != "model_output":
@@ -132,7 +123,6 @@ jobs:
               if story_text:
                   break
 
-
           if not story_text:
               print("")
               print("===== GEMINI RESPONSE STRUCTURE =====")
@@ -148,15 +138,9 @@ jobs:
                   "Could not find model output text."
               )
 
-
           print("")
           print("===== MODEL OUTPUT FOUND =====")
           print(story_text)
-
-
-          # --------------------------------------------------------
-          # Remove possible Markdown JSON fences
-          # --------------------------------------------------------
 
           if story_text.startswith("```json"):
               story_text = story_text[7:]
@@ -164,20 +148,12 @@ jobs:
           elif story_text.startswith("```"):
               story_text = story_text[3:]
 
-
           if story_text.endswith("```"):
               story_text = story_text[:-3]
 
-
           story_text = story_text.strip()
 
-
-          # --------------------------------------------------------
-          # Parse JSON
-          # --------------------------------------------------------
-
           try:
-
               story = json.loads(story_text)
 
           except json.JSONDecodeError as error:
@@ -189,11 +165,6 @@ jobs:
               raise RuntimeError(
                   f"Gemini did not return valid JSON: {error}"
               )
-
-
-          # --------------------------------------------------------
-          # Save story
-          # --------------------------------------------------------
 
           with open(
               "story.json",
@@ -207,7 +178,6 @@ jobs:
                   indent=2,
                   ensure_ascii=False
               )
-
 
           print("")
           print("===== STORY JSON CREATED =====")
@@ -239,16 +209,10 @@ jobs:
 
               story = json.load(f)
 
-
           print("")
           print("================================")
           print("PROJECT_DIBOO STORY VALIDATION")
           print("================================")
-
-
-          # --------------------------------------------------------
-          # Required top-level fields
-          # --------------------------------------------------------
 
           required_fields = [
               "title",
@@ -259,7 +223,6 @@ jobs:
               "scenes"
           ]
 
-
           for field in required_fields:
 
               if field not in story:
@@ -268,31 +231,19 @@ jobs:
                       f"Missing required field: {field}"
                   )
 
-
-          # --------------------------------------------------------
-          # Language
-          # --------------------------------------------------------
-
           if story["language"].lower() != "en":
 
               raise RuntimeError(
                   "Story language must be English (en)."
               )
 
-
-          # --------------------------------------------------------
-          # Duration
-          # --------------------------------------------------------
-
           duration = story["duration_target"]
-
 
           if not isinstance(duration, int):
 
               raise RuntimeError(
                   "duration_target must be an integer."
               )
-
 
           if not 40 <= duration <= 60:
 
@@ -301,13 +252,7 @@ jobs:
                   "Must be between 40 and 60 seconds."
               )
 
-
-          # --------------------------------------------------------
-          # Scenes
-          # --------------------------------------------------------
-
           scenes = story["scenes"]
-
 
           if not isinstance(scenes, list):
 
@@ -315,13 +260,11 @@ jobs:
                   "scenes must be a list."
               )
 
-
           if len(scenes) == 0:
 
               raise RuntimeError(
                   "No scenes were generated."
               )
-
 
           scene_fields = [
               "duration",
@@ -330,7 +273,6 @@ jobs:
               "action",
               "sfx"
           ]
-
 
           for index, scene in enumerate(
               scenes,
@@ -343,7 +285,6 @@ jobs:
                       f"Scene {index} is not an object."
                   )
 
-
               for field in scene_fields:
 
                   if field not in scene:
@@ -351,7 +292,6 @@ jobs:
                       raise RuntimeError(
                           f"Scene {index} is missing field: {field}"
                       )
-
 
               if not isinstance(
                   scene["duration"],
@@ -361,11 +301,6 @@ jobs:
                   raise RuntimeError(
                       f"Scene {index} duration must be an integer."
                   )
-
-
-          # --------------------------------------------------------
-          # Success
-          # --------------------------------------------------------
 
           print("")
           print("================================")
@@ -436,10 +371,6 @@ jobs:
           print("Scenes:")
           print(len(scenes))
 
-          # --------------------------------------------------------
-          # Create Blender Python script
-          # --------------------------------------------------------
-
           blender_script = r'''
 import bpy
 import math
@@ -448,7 +379,6 @@ import math
 # PROJECT DIBOO - GEMINI STORY TEST
 # ============================================================
 
-# Clear default scene
 bpy.ops.object.select_all(action='SELECT')
 bpy.ops.object.delete(use_global=False)
 
@@ -504,7 +434,7 @@ ground.data.materials.append(ground_mat)
 
 
 # ============================================================
-# SPHERE
+# MAIN OBJECT
 # ============================================================
 
 bpy.ops.mesh.primitive_uv_sphere_add(
@@ -582,11 +512,6 @@ scene.render.image_settings.file_format = 'PNG'
 scene.render.filepath = "/tmp/diboo_story_test_"
 
 scene.render.film_transparent = False
-
-
-# ============================================================
-# FRAME
-# ============================================================
 
 scene.frame_start = 1
 scene.frame_end = 1
