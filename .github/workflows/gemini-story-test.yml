@@ -10,7 +10,7 @@ jobs:
     steps:
 
       # ============================================================
-      # 1. GENERATE STORY WITH GEMINI
+      # 1. GENERATE STORY WITH GEMINI FLASH
       # ============================================================
 
       - name: Generate structured story
@@ -20,75 +20,14 @@ jobs:
           set -e
 
           echo "================================"
-          echo "DIBOO STORY GENERATOR"
+          echo "PROJECT_DIBOO"
+          echo "GEMINI FLASH STORY GENERATOR"
           echo "================================"
 
           cat > request.json <<'JSON'
           {
-            "model": "gemini-3.8-flash",
-            "input": "Create one original 3D cartoon YouTube Short story for the Project_Diboo channel. The story must be highly visual and easy to understand without audio. Use simple objects, animals, vehicles, or characters. Do not copy any copyrighted character or franchise. Target approximately 50 seconds. The narration must be in English. Structure the story with a strong hook, situation, problem, action, resolution, and payoff. Include visual descriptions, camera movement, character or object actions, and simple sound-effect suggestions.",
-            "response_format": {
-              "type": "text",
-              "mime_type": "application/json",
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "title": {
-                    "type": "string"
-                  },
-                  "duration_target": {
-                    "type": "integer"
-                  },
-                  "language": {
-                    "type": "string"
-                  },
-                  "hook": {
-                    "type": "string"
-                  },
-                  "narration": {
-                    "type": "string"
-                  },
-                  "scenes": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "duration": {
-                          "type": "integer"
-                        },
-                        "description": {
-                          "type": "string"
-                        },
-                        "camera": {
-                          "type": "string"
-                        },
-                        "action": {
-                          "type": "string"
-                        },
-                        "sfx": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "duration",
-                        "description",
-                        "camera",
-                        "action",
-                        "sfx"
-                      ]
-                    }
-                  }
-                },
-                "required": [
-                  "title",
-                  "duration_target",
-                  "language",
-                  "hook",
-                  "narration",
-                  "scenes"
-                ]
-              }
-            }
+            "model": "gemini-3.7-flash",
+            "input": "Create one original 3D cartoon YouTube Short story for the Project_Diboo channel. The story must be highly visual and easy to understand even without audio. Use simple objects, animals, vehicles, machines, or simple characters. Do not copy any copyrighted character, franchise, company, or protected visual style. The story must target approximately 50 seconds and must remain between 40 and 60 seconds. The narration must be in English. The story structure should contain: HOOK from 0-5 seconds, SITUATION from 5-12 seconds, PROBLEM from 12-25 seconds, ACTION from 25-40 seconds, RESOLUTION from 40-50 seconds, and PAYOFF from 50-55 seconds. The exact timing may vary while remaining between 40 and 60 seconds. Create a strong visual hook, clear cause-and-effect actions, dynamic camera movements, simple visual storytelling, and simple SFX suggestions. Return ONLY valid JSON with exactly these top-level fields: title, duration_target, language, hook, narration, scenes. Each scene must contain: duration, description, camera, action, sfx. The language field must be en."
           }
           JSON
 
@@ -97,7 +36,7 @@ jobs:
           for ATTEMPT in 1 2 3 4 5
           do
             echo ""
-            echo "===== GEMINI ATTEMPT $ATTEMPT / 5 ====="
+            echo "===== GEMINI FLASH ATTEMPT $ATTEMPT / 5 ====="
 
             RESPONSE=$(curl -s \
               -H "x-goog-api-key: $GEMINI_API_KEY" \
@@ -116,9 +55,9 @@ jobs:
 
               if echo "$RESPONSE" | grep -qE '"code": ?503|"status": ?"UNAVAILABLE"|service_unavailable'; then
                 echo ""
-                echo "Gemini is temporarily unavailable."
-                echo "Waiting 15 seconds before retry..."
-                sleep 15
+                echo "Gemini Flash is temporarily unavailable."
+                echo "Waiting 20 seconds before retry..."
+                sleep 20
                 continue
               fi
 
@@ -133,16 +72,16 @@ jobs:
 
           if [ "$SUCCESS" != "true" ]; then
             echo ""
-            echo "===== GEMINI FAILED AFTER 5 ATTEMPTS ====="
+            echo "===== GEMINI FLASH FAILED AFTER 5 ATTEMPTS ====="
             exit 1
           fi
 
           echo ""
-          echo "===== GEMINI RESPONSE RECEIVED ====="
+          echo "===== GEMINI FLASH RESPONSE RECEIVED ====="
 
 
       # ============================================================
-      # 2. EXTRACT GENERATED JSON
+      # 2. EXTRACT MODEL OUTPUT
       # ============================================================
 
       - name: Extract generated story
@@ -161,108 +100,42 @@ jobs:
 
           print("")
           print("================================")
-          print("SEARCHING GEMINI RESPONSE")
+          print("EXTRACTING GEMINI STORY")
           print("================================")
 
-          def find_json_object(obj):
+          story_text = None
 
-              if isinstance(obj, dict):
+          # --------------------------------------------------------
+          # Interactions API structure:
+          #
+          # steps
+          #   model_output
+          #     content
+          #       text
+          # --------------------------------------------------------
 
-                  # Direct output_text
-                  if "output_text" in obj:
-                      value = obj["output_text"]
+          for step in response.get("steps", []):
 
-                      if isinstance(value, str):
-                          text = value.strip()
+              if step.get("type") != "model_output":
+                  continue
 
-                          try:
-                              parsed = json.loads(text)
+              for content in step.get("content", []):
 
-                              if isinstance(parsed, dict):
-                                  return parsed
+                  if content.get("type") == "text":
 
-                          except json.JSONDecodeError:
-                              pass
+                      text = content.get("text", "").strip()
 
-                  # Common text fields
-                  for key in [
-                      "text",
-                      "content",
-                      "output",
-                      "response"
-                  ]:
+                      if text:
+                          story_text = text
+                          break
 
-                      if key in obj:
-
-                          value = obj[key]
-
-                          if isinstance(value, str):
-                              text = value.strip()
-
-                              try:
-                                  parsed = json.loads(text)
-
-                                  if isinstance(parsed, dict):
-                                      return parsed
-
-                              except json.JSONDecodeError:
-                                  pass
-
-                          result = find_json_object(value)
-
-                          if result is not None:
-                              return result
-
-                  # Search everything else
-                  for value in obj.values():
-
-                      result = find_json_object(value)
-
-                      if result is not None:
-                          return result
-
-              elif isinstance(obj, list):
-
-                  for item in obj:
-
-                      result = find_json_object(item)
-
-                      if result is not None:
-                          return result
-
-              elif isinstance(obj, str):
-
-                  text = obj.strip()
-
-                  # Remove possible markdown JSON fences
-                  if text.startswith("```json"):
-                      text = text[7:]
-
-                  if text.startswith("```"):
-                      text = text[3:]
-
-                  if text.endswith("```"):
-                      text = text[:-3]
-
-                  text = text.strip()
-
-                  try:
-                      parsed = json.loads(text)
-
-                      if isinstance(parsed, dict):
-                          return parsed
-
-                  except json.JSONDecodeError:
-                      pass
-
-              return None
+              if story_text:
+                  break
 
 
-          story = find_json_object(response)
-
-          if story is None:
+          if not story_text:
               print("")
-              print("===== FULL GEMINI RESPONSE =====")
+              print("===== GEMINI RESPONSE STRUCTURE =====")
               print(
                   json.dumps(
                       response,
@@ -272,8 +145,55 @@ jobs:
               )
 
               raise RuntimeError(
-                  "Could not find valid story JSON in Gemini response."
+                  "Could not find model output text."
               )
+
+
+          print("")
+          print("===== MODEL OUTPUT FOUND =====")
+          print(story_text)
+
+
+          # --------------------------------------------------------
+          # Remove possible Markdown JSON fences
+          # --------------------------------------------------------
+
+          if story_text.startswith("```json"):
+              story_text = story_text[7:]
+
+          elif story_text.startswith("```"):
+              story_text = story_text[3:]
+
+
+          if story_text.endswith("```"):
+              story_text = story_text[:-3]
+
+
+          story_text = story_text.strip()
+
+
+          # --------------------------------------------------------
+          # Parse JSON
+          # --------------------------------------------------------
+
+          try:
+
+              story = json.loads(story_text)
+
+          except json.JSONDecodeError as error:
+
+              print("")
+              print("===== INVALID JSON =====")
+              print(story_text)
+
+              raise RuntimeError(
+                  f"Gemini did not return valid JSON: {error}"
+              )
+
+
+          # --------------------------------------------------------
+          # Save story
+          # --------------------------------------------------------
 
           with open(
               "story.json",
@@ -288,9 +208,9 @@ jobs:
                   ensure_ascii=False
               )
 
-          print("")
-          print("===== GENERATED STORY JSON =====")
 
+          print("")
+          print("===== STORY JSON CREATED =====")
           print(
               json.dumps(
                   story,
@@ -298,9 +218,6 @@ jobs:
                   ensure_ascii=False
               )
           )
-
-          print("")
-          print("story.json created successfully.")
 
 
       # ============================================================
@@ -323,6 +240,16 @@ jobs:
               story = json.load(f)
 
 
+          print("")
+          print("================================")
+          print("PROJECT_DIBOO STORY VALIDATION")
+          print("================================")
+
+
+          # --------------------------------------------------------
+          # Required top-level fields
+          # --------------------------------------------------------
+
           required_fields = [
               "title",
               "duration_target",
@@ -342,12 +269,20 @@ jobs:
                   )
 
 
+          # --------------------------------------------------------
+          # Language
+          # --------------------------------------------------------
+
           if story["language"].lower() != "en":
 
               raise RuntimeError(
-                  "Story language is not English."
+                  "Story language must be English (en)."
               )
 
+
+          # --------------------------------------------------------
+          # Duration
+          # --------------------------------------------------------
 
           duration = story["duration_target"]
 
@@ -362,21 +297,26 @@ jobs:
           if not 40 <= duration <= 60:
 
               raise RuntimeError(
-                  f"Duration target is invalid: {duration}"
+                  f"Invalid duration: {duration}. "
+                  "Must be between 40 and 60 seconds."
               )
 
 
-          if not isinstance(
-              story["scenes"],
-              list
-          ):
+          # --------------------------------------------------------
+          # Scenes
+          # --------------------------------------------------------
+
+          scenes = story["scenes"]
+
+
+          if not isinstance(scenes, list):
 
               raise RuntimeError(
-                  "Scenes must be a list."
+                  "scenes must be a list."
               )
 
 
-          if len(story["scenes"]) == 0:
+          if len(scenes) == 0:
 
               raise RuntimeError(
                   "No scenes were generated."
@@ -393,7 +333,7 @@ jobs:
 
 
           for index, scene in enumerate(
-              story["scenes"],
+              scenes,
               start=1
           ):
 
@@ -409,9 +349,23 @@ jobs:
                   if field not in scene:
 
                       raise RuntimeError(
-                          f"Scene {index} is missing: {field}"
+                          f"Scene {index} is missing field: {field}"
                       )
 
+
+              if not isinstance(
+                  scene["duration"],
+                  int
+              ):
+
+                  raise RuntimeError(
+                      f"Scene {index} duration must be an integer."
+                  )
+
+
+          # --------------------------------------------------------
+          # Success
+          # --------------------------------------------------------
 
           print("")
           print("================================")
@@ -419,27 +373,28 @@ jobs:
           print("================================")
           print("")
 
-          print("Title:")
+          print("TITLE:")
           print(story["title"])
 
           print("")
 
+          print("DURATION:")
           print(
-              "Duration:",
               story["duration_target"],
               "seconds"
           )
 
-          print(
-              "Language:",
-              story["language"]
-          )
+          print("")
 
-          print(
-              "Scenes:",
-              len(story["scenes"])
-          )
+          print("LANGUAGE:")
+          print(story["language"])
 
           print("")
+
+          print("SCENES:")
+          print(len(scenes))
+
+          print("")
+
           print("story.json is valid.")
           PY
