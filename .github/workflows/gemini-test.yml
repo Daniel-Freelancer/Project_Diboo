@@ -14,29 +14,51 @@ jobs:
         run: |
           echo "===== GEMINI API TEST ====="
 
-          RESPONSE=$(curl -s \
-            -H "x-goog-api-key: $GEMINI_API_KEY" \
-            -H "Content-Type: application/json" \
-            -X POST \
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent" \
-            -d '{
-              "contents": [
-                {
-                  "parts": [
-                    {
-                      "text": "Reply with exactly: DIBOO GEMINI OK"
-                    }
-                  ]
-                }
-              ]
-            }')
+          URL="https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent"
 
-          echo "Gemini response:"
-          echo "$RESPONSE"
+          for ATTEMPT in 1 2 3 4 5
+          do
+            echo ""
+            echo "===== ATTEMPT $ATTEMPT / 5 ====="
 
-          if echo "$RESPONSE" | grep -q "DIBOO GEMINI OK"; then
-            echo "===== GEMINI TEST PASSED ====="
-          else
+            RESPONSE=$(curl -s \
+              -H "x-goog-api-key: $GEMINI_API_KEY" \
+              -H "Content-Type: application/json" \
+              -X POST \
+              "$URL" \
+              -d '{
+                "contents": [
+                  {
+                    "parts": [
+                      {
+                        "text": "Reply with exactly: DIBOO GEMINI OK"
+                      }
+                    ]
+                  }
+                ]
+              }')
+
+            echo "Gemini response:"
+            echo "$RESPONSE"
+
+            if echo "$RESPONSE" | grep -q "DIBOO GEMINI OK"; then
+              echo ""
+              echo "===== GEMINI TEST PASSED ====="
+              exit 0
+            fi
+
+            if echo "$RESPONSE" | grep -q '"code": 503'; then
+              echo "Gemini is temporarily unavailable."
+              echo "Waiting 15 seconds before retry..."
+              sleep 15
+              continue
+            fi
+
+            echo ""
             echo "===== GEMINI TEST FAILED ====="
             exit 1
-          fi
+          done
+
+          echo ""
+          echo "===== GEMINI TEST FAILED AFTER 5 ATTEMPTS ====="
+          exit 1
