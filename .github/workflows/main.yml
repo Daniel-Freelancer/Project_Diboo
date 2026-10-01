@@ -1,34 +1,79 @@
-name: Test Cloud Runner
+name: Check Cloud Tools
 
 on:
   workflow_dispatch:
 
 jobs:
-  test-runner:
+  check-tools:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Show system information
+      - name: Check Git
         run: |
-          echo "================================"
-          echo "DIBOO CLOUD RUNNER TEST"
-          echo "================================"
+          echo "===== GIT ====="
+          git --version
           echo ""
-          echo "CPU:"
-          nproc
+
+      - name: Check Python
+        run: |
+          echo "===== PYTHON ====="
+          python3 --version
+          pip3 --version
           echo ""
-          echo "RAM:"
+
+      - name: Check FFmpeg
+        run: |
+          echo "===== FFMPEG ====="
+          if command -v ffmpeg >/dev/null 2>&1; then
+            ffmpeg -version | head -n 1
+            echo "FFmpeg: AVAILABLE"
+          else
+            echo "FFmpeg: NOT AVAILABLE"
+          fi
+          echo ""
+
+      - name: Check Blender
+        run: |
+          echo "===== BLENDER ====="
+          if command -v blender >/dev/null 2>&1; then
+            blender --version | head -n 3
+            echo "Blender: AVAILABLE"
+          else
+            echo "Blender: NOT AVAILABLE"
+          fi
+          echo ""
+
+      - name: Check Node
+        run: |
+          echo "===== NODE ====="
+          if command -v node >/dev/null 2>&1; then
+            node --version
+            echo "Node: AVAILABLE"
+          else
+            echo "Node: NOT AVAILABLE"
+          fi
+          echo ""
+
+      - name: Check available disk
+        run: |
+          echo "===== DISK ====="
+          df -h /
+          echo ""
+
+      - name: Check memory
+        run: |
+          echo "===== MEMORY ====="
           free -h
           echo ""
-          echo "DISK:"
-          df -h
+
+      - name: Check CPU
+        run: |
+          echo "===== CPU ====="
+          nproc
           echo ""
-          echo "PYTHON:"
-          python3 --version
-          echo ""
-          echo "SYSTEM:"
-          uname -a
-          echo ""
+
+      - name: Finished
+        run: |
           echo "================================"
-          echo "RUNNER TEST FINISHED"
+          echo "CLOUD TOOL CHECK FINISHED"
           echo "================================"
