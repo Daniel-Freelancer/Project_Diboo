@@ -29,7 +29,7 @@ jobs:
           scene.render.resolution_y = 960
           scene.render.resolution_percentage = 100
 
-          # Short benchmark
+          # Animation
           scene.render.fps = 30
           scene.frame_start = 1
           scene.frame_end = 150
@@ -44,8 +44,10 @@ jobs:
           world.color = (0.08, 0.08, 0.08)
 
           # Ground
-          bpy.ops.mesh.primitive_plane_add(size=20, location=(0, 0, 0))
-          ground = bpy.context.object
+          bpy.ops.mesh.primitive_plane_add(
+              size=20,
+              location=(0, 0, 0)
+          )
 
           # Main object
           bpy.ops.mesh.primitive_uv_sphere_add(
@@ -53,16 +55,15 @@ jobs:
               ring_count=16,
               location=(0, 0, 1)
           )
-          ball = bpy.context.object
 
-          # Slightly cartoon-like smooth surface
+          ball = bpy.context.object
           bpy.ops.object.shade_smooth()
 
           # Camera
           bpy.ops.object.camera_add(
-              location=(0, -8, 4),
-              rotation=(math.radians(72), 0, 0)
+              location=(0, -8, 4)
           )
+
           camera = bpy.context.object
           scene.camera = camera
 
@@ -78,6 +79,7 @@ jobs:
               type='AREA',
               location=(0, -3, 6)
           )
+
           light = bpy.context.object
           light.data.energy = 1200
           light.data.shape = 'DISK'
@@ -103,7 +105,12 @@ jobs:
 
           print("BENCHMARK SCENE READY")
           print("Frames:", scene.frame_end)
-          print("Resolution:", scene.render.resolution_x, "x", scene.render.resolution_y)
+          print(
+              "Resolution:",
+              scene.render.resolution_x,
+              "x",
+              scene.render.resolution_y
+          )
           print("FPS:", scene.render.fps)
           PY
 
@@ -120,7 +127,7 @@ jobs:
             -F PNG \
             -f 1-150
 
-            - name: Inspect rendered frames
+      - name: Inspect rendered frames
         run: |
           echo "===== RENDERED FILES ====="
           find /tmp/benchmark -maxdepth 1 -type f -printf '%f\n' | sort
@@ -131,20 +138,8 @@ jobs:
           echo "===== DIRECTORY ====="
           ls -lah /tmp/benchmark
 
-      - name: Show benchmark information
+      - name: Finished
         run: |
           echo "================================"
-          echo "BENCHMARK COMPLETE"
+          echo "FRAME INSPECTION FINISHED"
           echo "================================"
-          echo ""
-          echo "VIDEO:"
-          ffprobe -v error \
-            -show_entries format=duration,size \
-            -of default=noprint_wrappers=1 \
-            /tmp/benchmark/benchmark.mp4
-          echo ""
-          echo "FRAME COUNT:"
-          find /tmp/benchmark -name "*.png" | wc -l
-          echo ""
-          echo "FINAL FILE:"
-          ls -lh /tmp/benchmark/benchmark.mp4
