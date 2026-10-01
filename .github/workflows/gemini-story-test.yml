@@ -8,6 +8,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
       - name: Generate structured story
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -19,7 +20,7 @@ jobs:
           cat > request.json <<'JSON'
           {
             "model": "gemini-3.8-flash",
-            "input": "Create one original 3D cartoon YouTube Short story for the Project_Diboo channel. The story must be highly visual and easy to understand without audio. Use simple objects, animals, vehicles, or characters. Do not copy any copyrighted character or franchise. Target approximately 50 seconds. The narration must be in English. Structure the story with a strong hook, situation, problem, action, resolution, and payoff. Include visual descriptions, camera movement, character/object actions, and simple sound-effect suggestions.",
+            "input": "Create one original 3D cartoon YouTube Short story for the Project_Diboo channel. The story must be highly visual and easy to understand without audio. Use simple objects, animals, vehicles, or characters. Do not copy any copyrighted character or franchise. Target approximately 50 seconds. The narration must be in English. Structure the story with a strong hook, situation, problem, action, resolution, and payoff. Include visual descriptions, camera movement, character or object actions, and simple sound-effect suggestions.",
             "response_format": {
               "type": "text",
               "mime_type": "application/json",
@@ -85,31 +86,57 @@ jobs:
           }
           JSON
 
-          RESPONSE=$(curl -s \
-            -H "x-goog-api-key: $GEMINI_API_KEY" \
-            -H "Content-Type: application/json" \
-            -X POST \
-            "https://generativelanguage.googleapis.com/v1beta/interactions" \
-            -d @request.json)
+          for ATTEMPT in 1 2 3 4 5
+          do
+            echo ""
+            echo "===== GEMINI ATTEMPT $ATTEMPT / 5 ====="
 
-          echo "$RESPONSE" > gemini_response.json
+            RESPONSE=$(curl -s \
+              -H "x-goog-api-key: $GEMINI_API_KEY" \
+              -H "Content-Type: application/json" \
+              -X POST \
+              "https://generativelanguage.googleapis.com/v1beta/interactions" \
+              -d @request.json)
 
-          echo ""
-          echo "===== GEMINI RAW RESPONSE ====="
-          cat gemini_response.json
+            echo "$RESPONSE" > gemini_response.json
+
+            echo ""
+            echo "===== GEMINI RESPONSE ====="
+            cat gemini_response.json
+
+            if echo "$RESPONSE" | grep -q '"error"'; then
+
+              if echo "$RESPONSE" | grep -qE '"code": ?503|"status": ?"UNAVAILABLE"|"code": ?"service_unavailable"'; then
+                echo ""
+                echo "Gemini is temporarily unavailable."
+                echo "Waiting 15 seconds before retry..."
+                sleep 15
+                continue
+              fi
+
+              echo ""
+              echo "===== GEMINI API ERROR ====="
+              exit 1
+            fi
+
+            echo ""
+            echo "===== GEMINI RESPONSE RECEIVED ====="
+            break
+          done
 
           if echo "$RESPONSE" | grep -q '"error"'; then
             echo ""
-            echo "===== GEMINI API ERROR ====="
+            echo "===== GEMINI FAILED AFTER 5 ATTEMPTS ====="
             exit 1
           fi
 
-      - name: Extract generated JSON
+      - name: Extract and validate JSON
         run: |
           set -e
 
           python3 - <<'PY'
           import json
+          import sys
 
           with open("gemini_response.json", "r", encoding="utf-8") as f:
               response = json.load(f)
@@ -117,36 +144,13 @@ jobs:
           output_text = response.get("output_text")
 
           if not output_text:
-              for step in response.get("steps", []):
-                  if step.get("type") == "model_output":
-                      for item in step.get("content", []):
-                          if item.get("type") == "text":
-                              output_text = item.get("text")
-                              break
-
-          if not output_text:
-              raise RuntimeError("Gemini returned no output text.")
+              raise RuntimeError(
+                  "Gemini response did not contain output_text."
+              )
 
           story = json.loads(output_text)
 
-          with open("story.json", "w", encoding="utf-8") as f:
-              json.dump(story, f, indent=2, ensure_ascii=False)
-
-          print("===== VALID JSON =====")
-          print(json.dumps(story, indent=2, ensure_ascii=False))
-          PY
-
-      - name: Validate Project_Diboo story
-        run: |
-          set -e
-
-          python3 - <<'PY'
-          import json
-
-          with open("story.json", "r", encoding="utf-8") as f:
-              story = json.load(f)
-
-          required = [
+          required_fields = [
               "title",
               "duration_target",
               "language",
@@ -155,31 +159,63 @@ jobs:
               "scenes"
           ]
 
-          for field in required:
+          for field in required_fields:
               if field not in story:
-                  raise RuntimeError(f"Missing required field: {field}")
+                  raise RuntimeError(
+                      f"Missing required field: {field}"
+                  )
 
           if story["language"].lower() != "en":
-              raise RuntimeError("Story language is not English.")
+              raise RuntimeError(
+                  "Story language is not English."
+              )
 
-          if not 40 <= story["duration_target"] <= 60:
-              raise RuntimeError("Target duration is outside 40-60 seconds.")
+          duration = story["duration_target"]
 
-          if not story["scenes"]:
-              raise RuntimeError("No scenes were generated.")
+          if not 40 <= duration <= 60:
+              raise RuntimeError(
+                  f"Duration target is invalid: {duration}"
+              )
 
-          for index, scene in enumerate(story["scenes"], start=1):
-              for field in [
-                  "duration",
-                  "description",
-                  "camera",
-                  "action",
-                  "sfx"
-              ]:
+          if not isinstance(story["scenes"], list):
+              raise RuntimeError(
+                  "Scenes must be a list."
+              )
+
+          if len(story["scenes"]) == 0:
+              raise RuntimeError(
+                  "No scenes were generated."
+              )
+
+          scene_fields = [
+              "duration",
+              "description",
+              "camera",
+              "action",
+              "sfx"
+          ]
+
+          for index, scene in enumerate(
+              story["scenes"],
+              start=1
+          ):
+              for field in scene_fields:
                   if field not in scene:
                       raise RuntimeError(
-                          f"Scene {index} is missing field: {field}"
+                          f"Scene {index} is missing: {field}"
                       )
+
+          with open(
+              "story.json",
+              "w",
+              encoding="utf-8"
+          ) as f:
+              json.dump(
+                  story,
+                  f,
+                  indent=2,
+                  ensure_ascii=False
+              )
 
           print("")
           print("================================")
@@ -187,7 +223,16 @@ jobs:
           print("================================")
           print("")
           print("Title:", story["title"])
-          print("Duration target:", story["duration_target"])
+          print(
+              "Duration:",
+              story["duration_target"],
+              "seconds"
+          )
           print("Language:", story["language"])
-          print("Scenes:", len(story["scenes"]))
+          print(
+              "Scenes:",
+              len(story["scenes"])
+          )
+          print("")
+          print("story.json created successfully.")
           PY
