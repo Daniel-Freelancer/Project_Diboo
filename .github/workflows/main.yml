@@ -1,0 +1,34 @@
+name: Test Cloud Runner
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-runner:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Show system information
+        run: |
+          echo "================================"
+          echo "DIBOO CLOUD RUNNER TEST"
+          echo "================================"
+          echo ""
+          echo "CPU:"
+          nproc
+          echo ""
+          echo "RAM:"
+          free -h
+          echo ""
+          echo "DISK:"
+          df -h
+          echo ""
+          echo "PYTHON:"
+          python3 --version
+          echo ""
+          echo "SYSTEM:"
+          uname -a
+          echo ""
+          echo "================================"
+          echo "RUNNER TEST FINISHED"
+          echo "================================"
