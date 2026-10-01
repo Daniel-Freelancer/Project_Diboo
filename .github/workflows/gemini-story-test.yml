@@ -1,1 +1,630 @@
+name: Gemini Story Test
 
+on:
+  workflow_dispatch:
+
+jobs:
+  generate-story:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # ============================================================
+      # 1. GENERATE STORY WITH GEMINI FLASH
+      # ============================================================
+
+      - name: Generate structured story
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          set -e
+
+          echo "================================"
+          echo "PROJECT_DIBOO"
+          echo "GEMINI FLASH STORY GENERATOR"
+          echo "================================"
+
+          cat > request.json <<'JSON'
+          {
+            "model": "gemini-3.7-flash",
+            "input": "Create one original 3D cartoon YouTube Short story for the Project_Diboo channel. The story must be highly visual and easy to understand even without audio. Use simple objects, animals, vehicles, machines, or simple characters. Do not copy any copyrighted character, franchise, company, or protected visual style. The story must target approximately 50 seconds and must remain between 40 and 60 seconds. The narration must be in English. The story structure should contain: HOOK from 0-5 seconds, SITUATION from 5-12 seconds, PROBLEM from 12-25 seconds, ACTION from 25-40 seconds, RESOLUTION from 40-50 seconds, and PAYOFF from 50-55 seconds. The exact timing may vary while remaining between 40 and 60 seconds. Create a strong visual hook, clear cause-and-effect actions, dynamic camera movements, simple visual storytelling, and simple SFX suggestions. Return ONLY valid JSON with exactly these top-level fields: title, duration_target, language, hook, narration, scenes. Each scene must contain: duration, description, camera, action, sfx. The language field must be en."
+          }
+          JSON
+
+          SUCCESS=false
+
+          for ATTEMPT in 1 2 3 4 5
+          do
+            echo ""
+            echo "===== GEMINI FLASH ATTEMPT $ATTEMPT / 5 ====="
+
+            RESPONSE=$(curl -s \
+              -H "x-goog-api-key: $GEMINI_API_KEY" \
+              -H "Content-Type: application/json" \
+              -X POST \
+              "https://generativelanguage.googleapis.com/v1beta/interactions" \
+              -d @request.json)
+
+            echo "$RESPONSE" > gemini_response.json
+
+            echo ""
+            echo "===== GEMINI RESPONSE ====="
+            cat gemini_response.json
+
+            if echo "$RESPONSE" | grep -q '"error"'; then
+
+              if echo "$RESPONSE" | grep -qE '"code": ?503|"status": ?"UNAVAILABLE"|service_unavailable'; then
+                echo ""
+                echo "Gemini Flash is temporarily unavailable."
+                echo "Waiting 20 seconds before retry..."
+                sleep 20
+                continue
+              fi
+
+              echo ""
+              echo "===== GEMINI API ERROR ====="
+              exit 1
+            fi
+
+            SUCCESS=true
+            break
+          done
+
+          if [ "$SUCCESS" != "true" ]; then
+            echo ""
+            echo "===== GEMINI FLASH FAILED AFTER 5 ATTEMPTS ====="
+            exit 1
+          fi
+
+          echo ""
+          echo "===== GEMINI FLASH RESPONSE RECEIVED ====="
+
+
+      # ============================================================
+      # 2. EXTRACT MODEL OUTPUT
+      # ============================================================
+
+      - name: Extract generated story
+        run: |
+          set -e
+
+          python3 - <<'PY'
+          import json
+
+          with open(
+              "gemini_response.json",
+              "r",
+              encoding="utf-8"
+          ) as f:
+              response = json.load(f)
+
+          print("")
+          print("================================")
+          print("EXTRACTING GEMINI STORY")
+          print("================================")
+
+          story_text = None
+
+          for step in response.get("steps", []):
+
+              if step.get("type") != "model_output":
+                  continue
+
+              for content in step.get("content", []):
+
+                  if content.get("type") == "text":
+
+                      text = content.get("text", "").strip()
+
+                      if text:
+                          story_text = text
+                          break
+
+              if story_text:
+                  break
+
+          if not story_text:
+              print("")
+              print("===== GEMINI RESPONSE STRUCTURE =====")
+              print(
+                  json.dumps(
+                      response,
+                      indent=2,
+                      ensure_ascii=False
+                  )
+              )
+
+              raise RuntimeError(
+                  "Could not find model output text."
+              )
+
+          print("")
+          print("===== MODEL OUTPUT FOUND =====")
+          print(story_text)
+
+          if story_text.startswith("```json"):
+              story_text = story_text[7:]
+
+          elif story_text.startswith("```"):
+              story_text = story_text[3:]
+
+          if story_text.endswith("```"):
+              story_text = story_text[:-3]
+
+          story_text = story_text.strip()
+
+          try:
+              story = json.loads(story_text)
+
+          except json.JSONDecodeError as error:
+
+              print("")
+              print("===== INVALID JSON =====")
+              print(story_text)
+
+              raise RuntimeError(
+                  f"Gemini did not return valid JSON: {error}"
+              )
+
+          with open(
+              "story.json",
+              "w",
+              encoding="utf-8"
+          ) as f:
+
+              json.dump(
+                  story,
+                  f,
+                  indent=2,
+                  ensure_ascii=False
+              )
+
+          print("")
+          print("===== STORY JSON CREATED =====")
+          print(
+              json.dumps(
+                  story,
+                  indent=2,
+                  ensure_ascii=False
+              )
+          )
+
+
+      # ============================================================
+      # 3. VALIDATE PROJECT_DIBOO STORY
+      # ============================================================
+
+      - name: Validate Project_Diboo story
+        run: |
+          set -e
+
+          python3 - <<'PY'
+          import json
+
+          with open(
+              "story.json",
+              "r",
+              encoding="utf-8"
+          ) as f:
+
+              story = json.load(f)
+
+          print("")
+          print("================================")
+          print("PROJECT_DIBOO STORY VALIDATION")
+          print("================================")
+
+          required_fields = [
+              "title",
+              "duration_target",
+              "language",
+              "hook",
+              "narration",
+              "scenes"
+          ]
+
+          for field in required_fields:
+
+              if field not in story:
+
+                  raise RuntimeError(
+                      f"Missing required field: {field}"
+                  )
+
+          if story["language"].lower() != "en":
+
+              raise RuntimeError(
+                  "Story language must be English (en)."
+              )
+
+          duration = story["duration_target"]
+
+          if not isinstance(duration, int):
+
+              raise RuntimeError(
+                  "duration_target must be an integer."
+              )
+
+          if not 40 <= duration <= 60:
+
+              raise RuntimeError(
+                  f"Invalid duration: {duration}. "
+                  "Must be between 40 and 60 seconds."
+              )
+
+          scenes = story["scenes"]
+
+          if not isinstance(scenes, list):
+
+              raise RuntimeError(
+                  "scenes must be a list."
+              )
+
+          if len(scenes) == 0:
+
+              raise RuntimeError(
+                  "No scenes were generated."
+              )
+
+          scene_fields = [
+              "duration",
+              "description",
+              "camera",
+              "action",
+              "sfx"
+          ]
+
+          for index, scene in enumerate(
+              scenes,
+              start=1
+          ):
+
+              if not isinstance(scene, dict):
+
+                  raise RuntimeError(
+                      f"Scene {index} is not an object."
+                  )
+
+              for field in scene_fields:
+
+                  if field not in scene:
+
+                      raise RuntimeError(
+                          f"Scene {index} is missing field: {field}"
+                      )
+
+              if not isinstance(
+                  scene["duration"],
+                  int
+              ):
+
+                  raise RuntimeError(
+                      f"Scene {index} duration must be an integer."
+                  )
+
+          print("")
+          print("================================")
+          print("DIBOO STORY VALIDATION: PASSED")
+          print("================================")
+          print("")
+
+          print("TITLE:")
+          print(story["title"])
+
+          print("")
+
+          print("DURATION:")
+          print(
+              story["duration_target"],
+              "seconds"
+          )
+
+          print("")
+
+          print("LANGUAGE:")
+          print(story["language"])
+
+          print("")
+
+          print("SCENES:")
+          print(len(scenes))
+
+          print("")
+
+          print("story.json is valid.")
+          PY
+
+
+      # ============================================================
+      # 4. CREATE BLENDER TEST SCENE FROM STORY.JSON
+      # ============================================================
+
+      - name: Generate Blender scene from story
+        run: |
+          set -e
+
+          echo "================================"
+          echo "DIBOO BLENDER SCENE GENERATOR"
+          echo "================================"
+
+          mkdir -p blender_test
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          with open(
+              "story.json",
+              "r",
+              encoding="utf-8"
+          ) as f:
+              story = json.load(f)
+
+          title = story["title"]
+          scenes = story["scenes"]
+
+          print("")
+          print("Story:")
+          print(title)
+
+          print("")
+          print("Scenes:")
+          print(len(scenes))
+
+          blender_script = r'''
+import bpy
+import math
+
+# ============================================================
+# PROJECT DIBOO - GEMINI STORY TEST
+# ============================================================
+
+bpy.ops.object.select_all(action='SELECT')
+bpy.ops.object.delete(use_global=False)
+
+# ============================================================
+# WORLD
+# ============================================================
+
+world = bpy.context.scene.world
+
+if world is None:
+    world = bpy.data.worlds.new("World")
+    bpy.context.scene.world = world
+
+world.use_nodes = True
+
+background = world.node_tree.nodes.get("Background")
+
+if background:
+    background.inputs["Color"].default_value = (
+        0.04,
+        0.06,
+        0.10,
+        1.0
+    )
+
+    background.inputs["Strength"].default_value = 0.4
+
+
+# ============================================================
+# GROUND
+# ============================================================
+
+bpy.ops.mesh.primitive_plane_add(
+    size=20,
+    location=(0, 0, 0)
+)
+
+ground = bpy.context.object
+ground.name = "DIBOO_Ground"
+
+ground_mat = bpy.data.materials.new(
+    "DIBOO_Ground_Material"
+)
+
+ground_mat.diffuse_color = (
+    0.08,
+    0.45,
+    0.12,
+    1.0
+)
+
+ground.data.materials.append(ground_mat)
+
+
+# ============================================================
+# MAIN OBJECT
+# ============================================================
+
+bpy.ops.mesh.primitive_uv_sphere_add(
+    segments=32,
+    ring_count=16,
+    radius=1.0,
+    location=(0, 0, 1)
+)
+
+sphere = bpy.context.object
+sphere.name = "DIBOO_Main_Object"
+
+sphere_mat = bpy.data.materials.new(
+    "DIBOO_Main_Object_Material"
+)
+
+sphere_mat.diffuse_color = (
+    1.0,
+    0.25,
+    0.05,
+    1.0
+)
+
+sphere.data.materials.append(sphere_mat)
+
+
+# ============================================================
+# CAMERA
+# ============================================================
+
+bpy.ops.object.camera_add(
+    location=(0, -10, 5),
+    rotation=(math.radians(72), 0, 0)
+)
+
+camera = bpy.context.object
+camera.name = "DIBOO_Camera"
+
+bpy.context.scene.camera = camera
+
+camera.data.lens = 50
+
+
+# ============================================================
+# LIGHT
+# ============================================================
+
+bpy.ops.object.light_add(
+    type='AREA',
+    location=(4, -4, 8)
+)
+
+light = bpy.context.object
+light.name = "DIBOO_Key_Light"
+
+light.data.energy = 1200
+light.data.shape = 'DISK'
+light.data.size = 5
+
+
+# ============================================================
+# RENDER SETTINGS
+# ============================================================
+
+scene = bpy.context.scene
+
+scene.render.engine = 'BLENDER_EEVEE'
+
+scene.render.resolution_x = 540
+scene.render.resolution_y = 960
+scene.render.resolution_percentage = 100
+
+scene.render.image_settings.file_format = 'PNG'
+
+scene.render.filepath = "/tmp/diboo_story_test_"
+
+scene.render.film_transparent = False
+
+scene.frame_start = 1
+scene.frame_end = 1
+
+scene.frame_set(1)
+
+
+# ============================================================
+# SAVE BLEND FILE
+# ============================================================
+
+bpy.ops.wm.save_as_mainfile(
+    filepath="/tmp/diboo_story_test.blend"
+)
+
+print("================================")
+print("DIBOO BLENDER SCENE CREATED")
+print("================================")
+
+print("Objects:")
+
+for obj in bpy.context.scene.objects:
+    print("-", obj.name)
+
+print("Resolution:")
+print(
+    scene.render.resolution_x,
+    "x",
+    scene.render.resolution_y
+)
+
+print("================================")
+'''
+
+          Path(
+              "blender_test/story_scene.py"
+          ).write_text(
+              blender_script,
+              encoding="utf-8"
+          )
+
+          print("")
+          print("Blender Python script created:")
+          print(
+              "blender_test/story_scene.py"
+          )
+          PY
+
+
+      # ============================================================
+      # 5. RENDER ONE FRAME
+      # ============================================================
+
+      - name: Render Blender story test
+        run: |
+          set -e
+
+          echo "================================"
+          echo "DIBOO BLENDER RENDER TEST"
+          echo "================================"
+
+          mkdir -p /tmp/diboo_render
+
+          blender \
+            -b \
+            --python blender_test/story_scene.py \
+            -o /tmp/diboo_render/frame_ \
+            -F PNG \
+            -f 1
+
+          echo ""
+          echo "================================"
+          echo "BLENDER RENDER FINISHED"
+          echo "================================"
+
+          ls -lh /tmp/diboo_render
+
+
+      # ============================================================
+      # 6. VERIFY RENDER
+      # ============================================================
+
+      - name: Verify Blender render
+        run: |
+          set -e
+
+          echo "================================"
+          echo "DIBOO RENDER VERIFICATION"
+          echo "================================"
+
+          FILE_COUNT=$(find /tmp/diboo_render \
+            -type f \
+            -name "*.png" \
+            | wc -l)
+
+          echo ""
+          echo "PNG FILE COUNT:"
+          echo "$FILE_COUNT"
+
+          if [ "$FILE_COUNT" -lt 1 ]; then
+            echo ""
+            echo "ERROR: Blender did not produce a PNG."
+            exit 1
+          fi
+
+          echo ""
+          echo "RENDER FILE:"
+          find /tmp/diboo_render \
+            -type f \
+            -name "*.png" \
+            -print
+
+          echo ""
+          echo "================================"
+          echo "DIBOO BLENDER TEST: PASSED"
+          echo "================================"
