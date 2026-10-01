@@ -230,13 +230,11 @@ jobs:
           for field in required_fields:
 
               if field not in story:
-
                   raise RuntimeError(
                       f"Missing required field: {field}"
                   )
 
           if story["language"].lower() != "en":
-
               raise RuntimeError(
                   "Story language must be English (en)."
               )
@@ -669,7 +667,46 @@ jobs:
           echo "DIBOO BLENDER RENDER TEST"
           echo "================================"
 
+          # ------------------------------------------------------------
+          # ENSURE BLENDER IS AVAILABLE
+          # ------------------------------------------------------------
+
+          if command -v blender >/dev/null 2>&1; then
+
+            echo ""
+            echo "Blender already available:"
+            blender --version
+
+          else
+
+            echo ""
+            echo "Blender not found."
+            echo "Installing Blender..."
+
+            sudo apt-get update
+
+            sudo apt-get install -y \
+              blender \
+              libtbb12 \
+              libegl1 \
+              libgl1 \
+              libglib2.0-0
+
+            echo ""
+            echo "Blender installation completed."
+
+            blender --version
+
+          fi
+
+          # ------------------------------------------------------------
+          # RENDER
+          # ------------------------------------------------------------
+
           mkdir -p /tmp/diboo_render
+
+          echo ""
+          echo "Starting Blender render..."
 
           blender \
             -b \
