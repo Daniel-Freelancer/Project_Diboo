@@ -1,0 +1,193 @@
+name: Gemini Story Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  generate-story:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Generate structured story
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          set -e
+
+          echo "===== DIBOO STORY GENERATOR ====="
+
+          cat > request.json <<'JSON'
+          {
+            "model": "gemini-3.8-flash",
+            "input": "Create one original 3D cartoon YouTube Short story for the Project_Diboo channel. The story must be highly visual and easy to understand without audio. Use simple objects, animals, vehicles, or characters. Do not copy any copyrighted character or franchise. Target approximately 50 seconds. The narration must be in English. Structure the story with a strong hook, situation, problem, action, resolution, and payoff. Include visual descriptions, camera movement, character/object actions, and simple sound-effect suggestions.",
+            "response_format": {
+              "type": "text",
+              "mime_type": "application/json",
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string"
+                  },
+                  "duration_target": {
+                    "type": "integer"
+                  },
+                  "language": {
+                    "type": "string"
+                  },
+                  "hook": {
+                    "type": "string"
+                  },
+                  "narration": {
+                    "type": "string"
+                  },
+                  "scenes": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "duration": {
+                          "type": "integer"
+                        },
+                        "description": {
+                          "type": "string"
+                        },
+                        "camera": {
+                          "type": "string"
+                        },
+                        "action": {
+                          "type": "string"
+                        },
+                        "sfx": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "duration",
+                        "description",
+                        "camera",
+                        "action",
+                        "sfx"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "title",
+                  "duration_target",
+                  "language",
+                  "hook",
+                  "narration",
+                  "scenes"
+                ]
+              }
+            }
+          }
+          JSON
+
+          RESPONSE=$(curl -s \
+            -H "x-goog-api-key: $GEMINI_API_KEY" \
+            -H "Content-Type: application/json" \
+            -X POST \
+            "https://generativelanguage.googleapis.com/v1beta/interactions" \
+            -d @request.json)
+
+          echo "$RESPONSE" > gemini_response.json
+
+          echo ""
+          echo "===== GEMINI RAW RESPONSE ====="
+          cat gemini_response.json
+
+          if echo "$RESPONSE" | grep -q '"error"'; then
+            echo ""
+            echo "===== GEMINI API ERROR ====="
+            exit 1
+          fi
+
+      - name: Extract generated JSON
+        run: |
+          set -e
+
+          python3 - <<'PY'
+          import json
+
+          with open("gemini_response.json", "r", encoding="utf-8") as f:
+              response = json.load(f)
+
+          output_text = response.get("output_text")
+
+          if not output_text:
+              for step in response.get("steps", []):
+                  if step.get("type") == "model_output":
+                      for item in step.get("content", []):
+                          if item.get("type") == "text":
+                              output_text = item.get("text")
+                              break
+
+          if not output_text:
+              raise RuntimeError("Gemini returned no output text.")
+
+          story = json.loads(output_text)
+
+          with open("story.json", "w", encoding="utf-8") as f:
+              json.dump(story, f, indent=2, ensure_ascii=False)
+
+          print("===== VALID JSON =====")
+          print(json.dumps(story, indent=2, ensure_ascii=False))
+          PY
+
+      - name: Validate Project_Diboo story
+        run: |
+          set -e
+
+          python3 - <<'PY'
+          import json
+
+          with open("story.json", "r", encoding="utf-8") as f:
+              story = json.load(f)
+
+          required = [
+              "title",
+              "duration_target",
+              "language",
+              "hook",
+              "narration",
+              "scenes"
+          ]
+
+          for field in required:
+              if field not in story:
+                  raise RuntimeError(f"Missing required field: {field}")
+
+          if story["language"].lower() != "en":
+              raise RuntimeError("Story language is not English.")
+
+          if not 40 <= story["duration_target"] <= 60:
+              raise RuntimeError("Target duration is outside 40-60 seconds.")
+
+          if not story["scenes"]:
+              raise RuntimeError("No scenes were generated.")
+
+          for index, scene in enumerate(story["scenes"], start=1):
+              for field in [
+                  "duration",
+                  "description",
+                  "camera",
+                  "action",
+                  "sfx"
+              ]:
+                  if field not in scene:
+                      raise RuntimeError(
+                          f"Scene {index} is missing field: {field}"
+                      )
+
+          print("")
+          print("================================")
+          print("DIBOO STORY VALIDATION: PASSED")
+          print("================================")
+          print("")
+          print("Title:", story["title"])
+          print("Duration target:", story["duration_target"])
+          print("Language:", story["language"])
+          print("Scenes:", len(story["scenes"]))
+          PY
