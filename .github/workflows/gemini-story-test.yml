@@ -29,7 +29,7 @@ jobs:
           cat > request.json <<'JSON'
           {
             "model": "gemini-3.5-flash-lite",
-            "input": "You are the story and Blender procedural generation engine for Project_Diboo. Generate BOTH a structured story and a complete Blender Python script in ONE response. The story is for an original 3D cartoon YouTube Short. It must be highly visual and understandable without audio. Use simple objects, animals, vehicles, machines, or simple characters. Do not copy copyrighted characters, franchises, companies, or protected visual styles. Target approximately 50 seconds and remain between 40 and 60 seconds. Narration language must be English. Story structure: HOOK 0-5 seconds, SITUATION 5-12 seconds, PROBLEM 12-25 seconds, ACTION 25-40 seconds, RESOLUTION 40-50 seconds, PAYOFF 50-55 seconds. Create strong visual storytelling, clear cause and effect, dynamic camera movements, and SFX suggestions. Return ONLY valid JSON with exactly these top-level fields: story and blender_script. The story object MUST contain exactly: title, duration_target, language, hook, narration, scenes. duration_target MUST be a plain integer. language MUST be en. Every scene MUST contain: duration, description, camera, action, sfx. Scene duration MUST be a plain integer. The blender_script field MUST contain a complete standalone Python script for Blender 4.0.2. The Blender script must use bpy and generate the scene procedurally. It must create the environment, ground, story objects, simple characters when needed, materials, camera, lighting, and animation. Do not require external assets, addons, downloads, or external files. Use simple primitives such as cubes, spheres, cylinders, cones and planes. Use exactly scene.render.engine = 'BLENDER_EEVEE'. Do NOT use BLENDER_EEVEE_NEXT. Configure vertical video at 1080x1920, resolution percentage 100, and 24 FPS. Convert the story duration to frames and set scene.frame_start = 1 and scene.frame_end accordingly. The scene MUST contain actual animation across the timeline using keyframes or equivalent Blender animation data. Do not create only a static frame. Create an active camera and at least one light. Prefer reliability and fast rendering over visual complexity. The script must save the Blender file to /tmp/diboo_story_scene.blend. At the end print DIBOO BLENDER SCENE CREATED, STORY TITLE, TOTAL FRAMES, FPS, RESOLUTION and BLENDER SCENE READY. Return ONLY the JSON object. No Markdown. No code fences. No explanations."
+            "input": "You are the story and Blender procedural generation engine for Project_Diboo. Generate BOTH a structured story and a complete Blender Python script in ONE response. The story is for an original 3D cartoon YouTube Short. It must be highly visual and understandable without audio. Use simple objects, animals, vehicles, machines, or simple characters. Do not copy copyrighted characters, franchises, companies, or protected visual styles. Target approximately 50 seconds and remain between 40 and 60 seconds. Narration language must be English. Story structure: HOOK 0-5 seconds, SITUATION 5-12 seconds, PROBLEM 12-25 seconds, ACTION 25-40 seconds, RESOLUTION 40-50 seconds, PAYOFF 50-55 seconds. Create strong visual storytelling, clear cause and effect, dynamic camera movements, and SFX suggestions. Return ONLY valid JSON with exactly these top-level fields: story and blender_script. The story object MUST contain exactly: title, duration_target, language, hook, narration, scenes. duration_target MUST be a plain integer. language MUST be en. Every scene MUST contain: duration, description, camera, action, sfx. Scene duration MUST be a plain integer. The blender_script field MUST contain a complete standalone Python script for Blender 4.0.2. The Blender script must use bpy and generate the scene procedurally. It must create the environment, ground, story objects, simple characters when needed, materials, camera, lighting, and animation. Do not require external assets, addons, downloads, or external files. Use only Blender 4.0.2 compatible bpy operators. For planes use bpy.ops.mesh.primitive_plane_add. For cubes use bpy.ops.mesh.primitive_cube_add. For spheres use bpy.ops.mesh.primitive_uv_sphere_add. For cylinders use bpy.ops.mesh.primitive_cylinder_add. For cones use bpy.ops.mesh.primitive_cone_add. Do not use bpy.ops.mesh.create_plane or other nonexistent mesh operators. Use exactly scene.render.engine = 'BLENDER_EEVEE'. Do NOT use BLENDER_EEVEE_NEXT. Configure vertical video at 1080x1920, resolution percentage 100, and 24 FPS. Convert the story duration to frames and set scene.frame_start = 1 and scene.frame_end accordingly. The scene MUST contain actual animation across the timeline using keyframes or equivalent Blender animation data. Do not create only a static frame. Create an active camera and at least one light. Prefer reliability and fast rendering over visual complexity. The script must save the Blender file to /tmp/diboo_story_scene.blend. At the end print DIBOO BLENDER SCENE CREATED, STORY TITLE, TOTAL FRAMES, FPS, RESOLUTION and BLENDER SCENE READY. Return ONLY the JSON object. No Markdown. No code fences. No explanations."
           }
           JSON
 
@@ -165,18 +165,7 @@ jobs:
 
           output_text = output_text.strip()
 
-          try:
-              generated = json.loads(output_text)
-
-          except json.JSONDecodeError as error:
-
-              print("")
-              print("===== INVALID GEMINI JSON =====")
-              print(output_text)
-
-              raise RuntimeError(
-                  f"Gemini did not return valid JSON: {error}"
-              )
+          generated = json.loads(output_text)
 
           if "story" not in generated:
               raise RuntimeError(
@@ -254,12 +243,14 @@ jobs:
 
           print("")
           print("===== BLENDER SCRIPT CREATED =====")
+
           print(
               "blender_scene/blender_scene.py"
           )
 
           print("")
           print("Script size:")
+
           print(
               len(blender_script),
               "characters"
@@ -308,6 +299,7 @@ jobs:
                   )
 
           if story["language"].lower() != "en":
+
               raise RuntimeError(
                   "Story language must be English (en)."
               )
@@ -315,14 +307,17 @@ jobs:
           raw_duration = story["duration_target"]
 
           if isinstance(raw_duration, bool):
+
               raise RuntimeError(
                   "duration_target cannot be boolean."
               )
 
           elif isinstance(raw_duration, int):
+
               duration = raw_duration
 
           elif isinstance(raw_duration, float):
+
               duration = int(raw_duration)
 
           elif isinstance(raw_duration, str):
@@ -333,6 +328,7 @@ jobs:
               )
 
               if not match:
+
                   raise RuntimeError(
                       "Could not extract duration."
                   )
@@ -342,20 +338,15 @@ jobs:
               )
 
           else:
+
               raise RuntimeError(
                   "Unsupported duration_target format."
               )
 
           story["duration_target"] = duration
 
-          print("")
-          print("Normalized duration:")
-          print(
-              duration,
-              "seconds"
-          )
-
           if not 40 <= duration <= 60:
+
               raise RuntimeError(
                   f"Invalid duration: {duration}. "
                   "Must be between 40 and 60 seconds."
@@ -367,11 +358,13 @@ jobs:
               scenes,
               list
           ):
+
               raise RuntimeError(
                   "scenes must be a list."
               )
 
           if len(scenes) == 0:
+
               raise RuntimeError(
                   "No scenes were generated."
               )
@@ -391,17 +384,10 @@ jobs:
               start=1
           ):
 
-              if not isinstance(
-                  scene,
-                  dict
-              ):
-                  raise RuntimeError(
-                      f"Scene {index} is not an object."
-                  )
-
               for field in scene_fields:
 
                   if field not in scene:
+
                       raise RuntimeError(
                           f"Scene {index} missing field: {field}"
                       )
@@ -409,14 +395,6 @@ jobs:
               raw_scene_duration = scene["duration"]
 
               if isinstance(
-                  raw_scene_duration,
-                  bool
-              ):
-                  raise RuntimeError(
-                      f"Scene {index} duration cannot be boolean."
-                  )
-
-              elif isinstance(
                   raw_scene_duration,
                   str
               ):
@@ -427,6 +405,7 @@ jobs:
                   )
 
                   if not match:
+
                       raise RuntimeError(
                           f"Scene {index} has invalid duration."
                       )
@@ -435,20 +414,14 @@ jobs:
                       match.group(0)
                   )
 
-              elif isinstance(
-                  raw_scene_duration,
-                  (int, float)
-              ):
+              else:
+
                   scene_duration = int(
                       raw_scene_duration
                   )
 
-              else:
-                  raise RuntimeError(
-                      f"Scene {index} duration must be numeric."
-                  )
-
               if scene_duration <= 0:
+
                   raise RuntimeError(
                       f"Scene {index} duration must be positive."
                   )
@@ -487,22 +460,12 @@ jobs:
           )
 
           print("")
-          print("LANGUAGE:")
-          print(story["language"])
-
-          print("")
           print("SCENES:")
           print(len(scenes))
 
           print("")
           print("TOTAL SCENE DURATION:")
-          print(
-              total_scene_duration,
-              "seconds"
-          )
-
-          print("")
-          print("story.json is valid.")
+          print(total_scene_duration, "seconds")
           PY
 
 
@@ -525,18 +488,7 @@ jobs:
             blender_scene/blender_scene.py
 
           echo ""
-          echo "Blender Python syntax:"
-          echo "PASSED"
-
-          echo ""
-          echo "Script:"
-          ls -lh \
-            blender_scene/blender_scene.py
-
-          echo ""
-          echo "================================"
-          echo "DIBOO BLENDER SCRIPT: PASSED"
-          echo "================================"
+          echo "Python syntax: PASSED"
 
 
       # ============================================================
@@ -553,15 +505,9 @@ jobs:
 
           if command -v blender >/dev/null 2>&1; then
 
-            echo ""
-            echo "Blender already available:"
             blender --version
 
           else
-
-            echo ""
-            echo "Blender not found."
-            echo "Installing Blender..."
 
             sudo apt-get update
 
@@ -572,16 +518,105 @@ jobs:
               libgl1 \
               libglib2.0-0
 
-            echo ""
-            echo "Blender installation completed."
-
             blender --version
 
           fi
 
 
       # ============================================================
-      # 6. GENERATE BLENDER PROJECT
+      # 6. AUTO-FIX KNOWN BLENDER 4.0.2 OPERATORS
+      # ============================================================
+
+      - name: Fix Blender 4.0.2 compatibility
+        run: |
+          set -e
+
+          echo "================================"
+          echo "DIBOO BLENDER COMPATIBILITY FIX"
+          echo "================================"
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path(
+              "blender_scene/blender_scene.py"
+          )
+
+          text = path.read_text(
+              encoding="utf-8"
+          )
+
+          replacements = {
+              "bpy.ops.mesh.create_plane":
+              "bpy.ops.mesh.primitive_plane_add",
+
+              "bpy.ops.mesh.create_cube":
+              "bpy.ops.mesh.primitive_cube_add",
+
+              "bpy.ops.mesh.create_uv_sphere":
+              "bpy.ops.mesh.primitive_uv_sphere_add",
+
+              "bpy.ops.mesh.create_cylinder":
+              "bpy.ops.mesh.primitive_cylinder_add",
+
+              "bpy.ops.mesh.create_cone":
+              "bpy.ops.mesh.primitive_cone_add"
+          }
+
+          changed = False
+
+          for old, new in replacements.items():
+
+              if old in text:
+
+                  print(
+                      "FIX:",
+                      old,
+                      "->",
+                      new
+                  )
+
+                  text = text.replace(
+                      old,
+                      new
+                  )
+
+                  changed = True
+
+          path.write_text(
+              text,
+              encoding="utf-8"
+          )
+
+          if changed:
+
+              print("")
+              print(
+                  "Blender compatibility fixes applied."
+              )
+
+          else:
+
+              print("")
+              print(
+                  "No known compatibility fixes required."
+              )
+          PY
+
+          echo ""
+          echo "Rechecking Python syntax..."
+
+          python3 -m py_compile \
+            blender_scene/blender_scene.py
+
+          echo ""
+          echo "================================"
+          echo "BLENDER COMPATIBILITY CHECK: PASSED"
+          echo "================================"
+
+
+      # ============================================================
+      # 7. GENERATE BLENDER SCENE
       # ============================================================
 
       - name: Generate Blender scene
@@ -591,6 +626,9 @@ jobs:
           echo "================================"
           echo "DIBOO BLENDER SCENE GENERATOR"
           echo "================================"
+
+          rm -f \
+            /tmp/diboo_story_scene.blend
 
           blender \
             -b \
@@ -614,12 +652,13 @@ jobs:
 
           echo ""
           echo "BLENDER FILE:"
+
           ls -lh \
             /tmp/diboo_story_scene.blend
 
 
       # ============================================================
-      # 7. INSPECT FULL ANIMATION
+      # 8. INSPECT ANIMATION
       # ============================================================
 
       - name: Inspect Blender animation
@@ -634,6 +673,12 @@ jobs:
           import bpy
 
           scene = bpy.context.scene
+
+          total_frames = (
+              scene.frame_end
+              - scene.frame_start
+              + 1
+          )
 
           print("")
           print("================================")
@@ -650,13 +695,6 @@ jobs:
 
           print("")
           print("TOTAL FRAMES:")
-
-          total_frames = (
-              scene.frame_end
-              - scene.frame_start
-              + 1
-          )
-
           print(total_frames)
 
           print("")
@@ -694,14 +732,9 @@ jobs:
             --python \
             /tmp/inspect_diboo_scene.py
 
-          echo ""
-          echo "================================"
-          echo "DIBOO ANIMATION INSPECTION FINISHED"
-          echo "================================"
-
 
       # ============================================================
-      # 8. PREPARE FULL RENDER
+      # 9. PREPARE FULL RENDER
       # ============================================================
 
       - name: Prepare full animation render
@@ -727,12 +760,12 @@ jobs:
           echo "PNG"
 
           echo ""
-          echo "Render:"
+          echo "Render mode:"
           echo "FULL ANIMATION"
 
 
       # ============================================================
-      # 9. RENDER COMPLETE ANIMATION
+      # 10. RENDER COMPLETE ANIMATION
       # ============================================================
 
       - name: Render complete Blender animation
@@ -742,9 +775,6 @@ jobs:
           echo "================================"
           echo "DIBOO FULL ANIMATION RENDER"
           echo "================================"
-
-          echo ""
-          echo "Starting complete animation render..."
 
           blender \
             -b \
@@ -761,7 +791,7 @@ jobs:
 
 
       # ============================================================
-      # 10. VERIFY COMPLETE ANIMATION
+      # 11. VERIFY COMPLETE ANIMATION
       # ============================================================
 
       - name: Verify complete animation render
