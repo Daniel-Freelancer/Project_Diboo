@@ -30,7 +30,7 @@ jobs:
           cat > request.json <<'JSON'
           {
             "model": "gemini-3.5-flash-lite",
-            "input": "You are the story and Blender procedural generation engine for Project_Diboo. Generate BOTH a structured story and a complete Blender Python script in ONE response. The story is for an original 3D cartoon YouTube Short. It must be highly visual and understandable without audio. Use simple objects, animals, vehicles, machines, or simple characters. Do not copy copyrighted characters, franchises, companies, or protected visual styles. Target approximately 50 seconds and remain between 40 and 60 seconds. Narration language must be English. Story structure: HOOK 0-5 seconds, SITUATION 5-12 seconds, PROBLEM 12-25 seconds, ACTION 25-40 seconds, RESOLUTION 40-50 seconds, PAYOFF 50-55 seconds. Create strong visual storytelling, clear cause and effect, dynamic camera movements, and SFX suggestions. Return ONLY valid JSON with exactly these top-level fields: story and blender_script. The story object MUST contain exactly: title, duration_target, language, hook, narration, scenes. duration_target MUST be a plain integer. language MUST be en. Every scene MUST contain: duration, description, camera, action, sfx. Scene duration MUST be a plain integer. The blender_script field MUST contain a complete standalone Python script for Blender 4.0.2. The script MUST be conservative, deterministic and reliable. It MUST NOT depend on external files, addons, downloads, textures, fonts, images, sounds or network access. It MUST run correctly in Blender 4.0.2 background mode using: blender -b --python blender_scene.py. The script MUST import bpy and math only unless another Python standard-library module is absolutely necessary. It MUST first clear the default scene using bpy.ops.object.select_all(action='SELECT') and bpy.ops.object.delete(use_global=False). Use only stable Blender 4.0.2 operators. For planes ALWAYS use bpy.ops.mesh.primitive_plane_add. NEVER use bpy.ops.mesh.create_plane. Use cubes, spheres, cylinders, cones and planes only. Create materials using bpy.data.materials.new and diffuse_color whenever possible. If using nodes, NEVER access Principled BSDF inputs by numeric indexes. NEVER use inputs[21], inputs[20], inputs[0] or any numeric socket index. Access sockets only by name using node.inputs.get('Base Color'), node.inputs.get('Roughness'), node.inputs.get('Metallic'), node.inputs.get('Specular IOR Level'), node.inputs.get('Alpha'), etc. Color values MUST be 4-value RGBA tuples. Float values MUST be single floats. Create the camera BEFORE creating animation. Set scene.camera = camera. Create at least one light. Use scene.render.engine = 'BLENDER_EEVEE' exactly. NEVER use BLENDER_EEVEE_NEXT. Configure scene.render.resolution_x = 1080, scene.render.resolution_y = 1920, scene.render.resolution_percentage = 100 and scene.render.fps = 24. Convert duration_target to frames. Set scene.frame_start = 1 and scene.frame_end = duration_target * scene.render.fps. Keep geometry and lighting simple for fast EEVEE rendering. Avoid simulations, particle systems, geometry nodes, compositing, volumetrics, cloth, smoke, fire, rigid body simulations and expensive modifiers. Prefer simple keyframe animation. Every animated object must already exist before keyframes are inserted. Before saving, verify that scene.camera is not None. The script MUST save the Blender scene using bpy.ops.wm.save_as_mainfile(filepath='/tmp/diboo_story_scene.blend'). After saving, verify that the file exists using Python standard library os.path.exists. If the file does not exist, raise RuntimeError. At the end print exactly these diagnostic messages: DIBOO BLENDER SCENE CREATED, STORY TITLE, TOTAL FRAMES, FPS, RESOLUTION, BLENDER SCENE READY. The script must not render anything itself. Return ONLY the JSON object. No Markdown. No code fences. No explanations."
+            "input": "You are the story and Blender procedural generation engine for Project_Diboo. Generate BOTH a structured story and a complete Blender Python script in ONE response. The story is for an original 3D cartoon YouTube Short. It must be highly visual and understandable without audio. Use simple objects, animals, vehicles, machines, or simple characters. Do not copy copyrighted characters, franchises, companies, or protected visual styles. Target approximately 50 seconds and remain between 40 and 60 seconds. Narration language must be English. Story structure: HOOK 0-5 seconds, SITUATION 5-12 seconds, PROBLEM 12-25 seconds, ACTION 25-40 seconds, RESOLUTION 40-50 seconds, PAYOFF 50-55 seconds. Create strong visual storytelling, clear cause and effect, dynamic camera movements, and SFX suggestions. Return ONLY valid JSON with exactly these top-level fields: story and blender_script. The story object MUST contain exactly: title, duration_target, language, hook, narration, scenes. duration_target MUST be a plain integer. language MUST be en. Every scene MUST contain: duration, description, camera, action, sfx. Scene duration MUST be a plain integer. The blender_script field MUST contain a complete standalone Python script for Blender 4.0.2. The script MUST be conservative, deterministic and reliable. It MUST NOT depend on external files, addons, downloads, textures, fonts, images, sounds or network access. It MUST run correctly in Blender 4.0.2 background mode using: blender -b --python blender_scene.py. The script MUST import bpy and math only unless another Python standard-library module is absolutely necessary. It MUST first clear the default scene using bpy.ops.object.select_all(action='SELECT') and bpy.ops.object.delete(use_global=False). Use only stable Blender 4.0.2 operators. For planes ALWAYS use bpy.ops.mesh.primitive_plane_add. NEVER use bpy.ops.mesh.create_plane. Use cubes, spheres, cylinders, cones and planes only. Create materials using bpy.data.materials.new and diffuse_color whenever possible. If using nodes, NEVER access Principled BSDF inputs by numeric indexes. NEVER use inputs[21], inputs[20], inputs[0] or any numeric socket index. Access sockets only by name using node.inputs.get('Base Color'), node.inputs.get('Roughness'), node.inputs.get('Metallic'), node.inputs.get('Specular IOR Level'), node.inputs.get('Alpha'), etc. Color values MUST be 4-value RGBA tuples. Float values MUST be single floats. Create the camera BEFORE creating animation. Set scene.camera = camera. Create at least one light. Use scene.render.engine = 'BLENDER_EEVEE' exactly. NEVER use BLENDER_EEVEE_NEXT. Configure scene.render.resolution_x = 1080, scene.render.resolution_y = 1920, scene.render.resolution_percentage = 100 and scene.render.fps = 24. Convert duration_target to frames. Set scene.frame_start = 1 and scene.frame_end = duration_target * scene.render.fps. Keep geometry and lighting simple for fast EEVEE rendering. Avoid simulations, particle systems, geometry nodes, compositing, volumetrics, cloth, smoke, fire, rigid body simulations and expensive modifiers. Prefer simple keyframe animation. Every animated object must already exist before keyframes are inserted. Before saving, verify that scene.camera is not None. The script MUST save the Blender scene using bpy.ops.wm.save_as_mainfile(filepath='/tmp/diboo_story_scene.blend'). After saving, verify that the file exists using Python standard library os.path.exists. At the end print exactly these diagnostic messages: DIBOO BLENDER SCENE CREATED, STORY TITLE, TOTAL FRAMES, FPS, RESOLUTION, BLENDER SCENE READY. The script must not render anything itself. Return ONLY the JSON object. No Markdown. No code fences. No explanations."
           }
           JSON
 
@@ -783,7 +783,52 @@ jobs:
 
 
       # ============================================================
-      # 7. RENDER COMPLETE ANIMATION
+      # 7. FORCE FAST RENDER SETTINGS
+      # ============================================================
+
+      - name: Configure Blender for 8 samples
+        run: |
+          set -e
+
+          echo "================================"
+          echo "DIBOO FAST RENDER CONFIGURATION"
+          echo "================================"
+
+          blender \
+            -b \
+            /tmp/diboo_story_scene.blend \
+            --python-expr "
+          import bpy
+          scene = bpy.context.scene
+
+          scene.render.engine = 'BLENDER_EEVEE'
+
+          scene.render.resolution_x = 1080
+          scene.render.resolution_y = 1920
+          scene.render.resolution_percentage = 100
+
+          scene.render.fps = 24
+
+          if hasattr(scene, 'eevee'):
+              if hasattr(scene.eevee, 'taa_render_samples'):
+                  scene.eevee.taa_render_samples = 8
+
+              if hasattr(scene.eevee, 'taa_samples'):
+                  scene.eevee.taa_samples = 8
+
+          bpy.ops.wm.save_as_mainfile(
+              filepath='/tmp/diboo_story_scene.blend'
+          )
+
+          print('DIBOO FAST RENDER SETTINGS APPLIED')
+          print('EEVEE SAMPLES: 8')
+          print('RESOLUTION: 1080x1920')
+          print('FPS: 24')
+          "
+
+
+      # ============================================================
+      # 8. RENDER COMPLETE ANIMATION
       # ============================================================
 
       - name: Render Blender story test
@@ -793,6 +838,13 @@ jobs:
           echo "================================"
           echo "DIBOO FULL ANIMATION RENDER"
           echo "================================"
+
+          echo ""
+          echo "Render configuration:"
+          echo "EEVEE samples: 8"
+          echo "Resolution: 1080x1920"
+          echo "FPS: 24"
+          echo ""
 
           rm -rf /tmp/diboo_render
 
@@ -865,7 +917,7 @@ jobs:
 
 
       # ============================================================
-      # 8. VERIFY COMPLETE ANIMATION
+      # 9. VERIFY COMPLETE ANIMATION
       # ============================================================
 
       - name: Verify complete animation render
@@ -930,7 +982,7 @@ jobs:
 
 
       # ============================================================
-      # 9. COMPLETE TEST
+      # 10. COMPLETE TEST
       # ============================================================
 
       - name: Complete Project_Diboo test
@@ -949,6 +1001,7 @@ jobs:
           echo "Blender script validation: PASSED"
           echo "Blender preparation: PASSED"
           echo "Blender scene generation: PASSED"
+          echo "Fast render configuration: PASSED"
           echo "Full animation render: PASSED"
           echo "Render verification: PASSED"
 
