@@ -26,7 +26,7 @@ jobs:
 
           cat > request.json <<'JSON'
           {
-            "model": "gemini-3.7-flash",
+            "model": "gemini-flash-latest",
             "input": "Create one original 3D cartoon YouTube Short story for the Project_Diboo channel. The story must be highly visual and easy to understand even without audio. Use simple objects, animals, vehicles, machines, or simple characters. Do not copy any copyrighted character, franchise, company, or protected visual style. The story must target approximately 50 seconds and must remain between 40 and 60 seconds. The narration must be in English. The story structure should contain: HOOK from 0-5 seconds, SITUATION from 5-12 seconds, PROBLEM from 12-25 seconds, ACTION from 25-40 seconds, RESOLUTION from 40-50 seconds, and PAYOFF from 50-55 seconds. The exact timing may vary while remaining between 40 and 60 seconds. Create a strong visual hook, clear cause-and-effect actions, dynamic camera movements, simple visual storytelling, and simple SFX suggestions. Return ONLY valid JSON with exactly these top-level fields: title, duration_target, language, hook, narration, scenes. duration_target MUST be a plain integer containing only the number of seconds, for example 53, never a string and never include the word seconds. Each scene must contain: duration, description, camera, action, sfx. Scene duration MUST also be a plain integer. The language field must be en."
           }
           JSON
@@ -599,7 +599,7 @@ jobs:
           )
 
           request = {
-              "model": "gemini-3.7-flash",
+              "model": "gemini-flash-latest",
               "input": full_prompt
           }
 
