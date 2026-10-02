@@ -10,7 +10,7 @@ jobs:
     steps:
 
       # ============================================================
-      # 1. GENERATE STORY + BLENDER SCRIPT WITH GEMINI FLASH
+      # 1. GENERATE STORY + BLENDER SCRIPT WITH GEMINI FLASH-LITE
       # ============================================================
 
       - name: Generate story and Blender script
@@ -21,15 +21,15 @@ jobs:
 
           echo "================================"
           echo "PROJECT_DIBOO"
-          echo "GEMINI FLASH GENERATOR"
+          echo "GEMINI 3.5 FLASH-LITE GENERATOR"
           echo "================================"
 
           mkdir -p blender_scene
 
           cat > request.json <<'JSON'
           {
-            "model": "gemini-flash-latest",
-            "input": "You are the story and Blender procedural generation engine for Project_Diboo. Generate BOTH a structured story and a complete Blender Python script in ONE response. The story is for an original 3D cartoon YouTube Short. It must be highly visual and understandable without audio. Use simple objects, animals, vehicles, machines, or simple characters. Do not copy copyrighted characters, franchises, companies, or protected visual styles. Target approximately 50 seconds and remain between 40 and 60 seconds. Narration language must be English. Story structure: HOOK 0-5 seconds, SITUATION 5-12 seconds, PROBLEM 12-25 seconds, ACTION 25-40 seconds, RESOLUTION 40-50 seconds, PAYOFF 50-55 seconds. Create strong visual storytelling, cause-and-effect actions, dynamic camera movements, and SFX suggestions. Return ONLY valid JSON with exactly these top-level fields: story and blender_script. The story object MUST contain exactly: title, duration_target, language, hook, narration, scenes. duration_target MUST be a plain integer. language MUST be en. Every scene MUST contain: duration, description, camera, action, sfx. Scene duration MUST be a plain integer. The blender_script field MUST contain a complete standalone Python script for Blender 4.0.2. The Blender script must use bpy, generate the scene procedurally, create environment, ground, story objects, simple characters when needed, materials, camera, lighting, and animation. Do not require external assets, addons, downloads, or external files. Use simple primitives such as cubes, spheres, cylinders, cones and planes. Use exactly scene.render.engine = 'BLENDER_EEVEE'. Do NOT use BLENDER_EEVEE_NEXT. Configure vertical video at 1080x1920, resolution percentage 100, 24 FPS. Convert the story duration to frames and set scene.frame_start = 1 and scene.frame_end accordingly. Create an active camera and at least one light. Prefer reliability and fast rendering over visual complexity. The script must save the Blender file to /tmp/diboo_story_scene.blend. At the end print DIBOO BLENDER SCENE CREATED, STORY TITLE, TOTAL FRAMES, FPS, RESOLUTION and BLENDER SCENE READY. Return ONLY the JSON object. No Markdown. No code fences. No explanations."
+            "model": "gemini-3.5-flash-lite",
+            "input": "You are the story and Blender procedural generation engine for Project_Diboo. Generate BOTH a structured story and a complete Blender Python script in ONE response. The story is for an original 3D cartoon YouTube Short. It must be highly visual and understandable without audio. Use simple objects, animals, vehicles, machines, or simple characters. Do not copy copyrighted characters, franchises, companies, or protected visual styles. Target approximately 50 seconds and remain between 40 and 60 seconds. Narration language must be English. Story structure: HOOK 0-5 seconds, SITUATION 5-12 seconds, PROBLEM 12-25 seconds, ACTION 25-40 seconds, RESOLUTION 40-50 seconds, PAYOFF 50-55 seconds. Create strong visual storytelling, clear cause and effect, dynamic camera movements, and SFX suggestions. Return ONLY valid JSON with exactly these top-level fields: story and blender_script. The story object MUST contain exactly: title, duration_target, language, hook, narration, scenes. duration_target MUST be a plain integer. language MUST be en. Every scene MUST contain: duration, description, camera, action, sfx. Scene duration MUST be a plain integer. The blender_script field MUST contain a complete standalone Python script for Blender 4.0.2. The Blender script must use bpy and generate the scene procedurally. It must create the environment, ground, story objects, simple characters when needed, materials, camera, lighting, and animation. Do not require external assets, addons, downloads, or external files. Use simple primitives such as cubes, spheres, cylinders, cones and planes. Use exactly scene.render.engine = 'BLENDER_EEVEE'. Do NOT use BLENDER_EEVEE_NEXT. Configure vertical video at 1080x1920, resolution percentage 100, and 24 FPS. Convert the story duration to frames and set scene.frame_start = 1 and scene.frame_end accordingly. Create an active camera and at least one light. Prefer reliability and fast rendering over visual complexity. The script must save the Blender file to /tmp/diboo_story_scene.blend. At the end print DIBOO BLENDER SCENE CREATED, STORY TITLE, TOTAL FRAMES, FPS, RESOLUTION and BLENDER SCENE READY. Return ONLY the JSON object. No Markdown. No code fences. No explanations."
           }
           JSON
 
@@ -38,7 +38,7 @@ jobs:
           for ATTEMPT in 1 2 3 4 5
           do
             echo ""
-            echo "===== GEMINI FLASH ATTEMPT $ATTEMPT / 5 ====="
+            echo "===== GEMINI 3.5 FLASH-LITE ATTEMPT $ATTEMPT / 5 ====="
 
             RESPONSE=$(curl -s \
               -H "x-goog-api-key: $GEMINI_API_KEY" \
@@ -57,9 +57,17 @@ jobs:
 
               if echo "$RESPONSE" | grep -qE '"code": ?503|"status": ?"UNAVAILABLE"|service_unavailable'; then
                 echo ""
-                echo "Gemini Flash temporarily unavailable."
+                echo "Gemini Flash-Lite temporarily unavailable."
                 echo "Waiting 20 seconds before retry..."
                 sleep 20
+                continue
+              fi
+
+              if echo "$RESPONSE" | grep -qE '"code": ?429|too_many_requests|Rate limit exceeded'; then
+                echo ""
+                echo "Gemini Flash-Lite rate limit reached."
+                echo "Waiting 60 seconds before retry..."
+                sleep 60
                 continue
               fi
 
@@ -74,12 +82,12 @@ jobs:
 
           if [ "$SUCCESS" != "true" ]; then
             echo ""
-            echo "===== GEMINI FAILED AFTER 5 ATTEMPTS ====="
+            echo "===== GEMINI FLASH-LITE FAILED AFTER 5 ATTEMPTS ====="
             exit 1
           fi
 
           echo ""
-          echo "===== GEMINI RESPONSE RECEIVED ====="
+          echo "===== GEMINI FLASH-LITE RESPONSE RECEIVED ====="
 
 
       # ============================================================
@@ -246,7 +254,6 @@ jobs:
 
           print("")
           print("===== BLENDER SCRIPT CREATED =====")
-
           print(
               "blender_scene/blender_scene.py"
           )
@@ -500,7 +507,7 @@ jobs:
 
 
       # ============================================================
-      # 4. VALIDATE GENERATED BLENDER SCRIPT
+      # 4. VALIDATE BLENDER PYTHON SCRIPT
       # ============================================================
 
       - name: Validate Blender Python script
@@ -533,7 +540,7 @@ jobs:
 
 
       # ============================================================
-      # 5. RENDER ONE FRAME WITH BLENDER
+      # 5. RENDER WITH BLENDER
       # ============================================================
 
       - name: Render Blender story test
