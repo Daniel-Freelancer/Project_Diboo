@@ -10,10 +10,10 @@ jobs:
     steps:
 
       # ============================================================
-      # 1. GENERATE STORY + BLENDER SCRIPT WITH GEMINI FLASH-LITE
+      # 1. GENERATE STORY + OPTIMIZED BLENDER SCRIPT
       # ============================================================
 
-      - name: Generate story and Blender script
+      - name: Generate story and optimized Blender script
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
@@ -21,7 +21,8 @@ jobs:
 
           echo "================================"
           echo "PROJECT_DIBOO"
-          echo "GEMINI FLASH-LITE GENERATOR"
+          echo "GEMINI 3.5 FLASH-LITE GENERATOR"
+          echo "OPTIMIZED RENDER EDITION"
           echo "================================"
 
           mkdir -p blender_scene
@@ -29,7 +30,7 @@ jobs:
           cat > request.json <<'JSON'
           {
             "model": "gemini-3.5-flash-lite",
-            "input": "You are the story and Blender procedural generation engine for Project_Diboo. Generate BOTH a structured story and a complete Blender Python script in ONE response. The story is for an original 3D cartoon YouTube Short. It must be highly visual and understandable without audio. Use simple objects, animals, vehicles, machines, or simple characters. Do not copy copyrighted characters, franchises, companies, or protected visual styles. Target approximately 50 seconds and remain between 40 and 60 seconds. Narration language must be English. Story structure: HOOK 0-5 seconds, SITUATION 5-12 seconds, PROBLEM 12-25 seconds, ACTION 25-40 seconds, RESOLUTION 40-50 seconds, PAYOFF 50-55 seconds. Create strong visual storytelling, clear cause and effect, dynamic camera movements, and SFX suggestions. Return ONLY valid JSON with exactly these top-level fields: story and blender_script. The story object MUST contain exactly: title, duration_target, language, hook, narration, scenes. duration_target MUST be a plain integer. language MUST be en. Every scene MUST contain: duration, description, camera, action, sfx. Scene duration MUST be a plain integer. The blender_script field MUST contain a complete standalone Python script for Blender 4.0.2. The Blender script must use bpy and generate the scene procedurally. It must create the environment, ground, story objects, simple characters when needed, materials, camera, lighting, and animation. Do not require external assets, addons, downloads, or external files. Use only Blender 4.0.2 compatible bpy operators. For planes use bpy.ops.mesh.primitive_plane_add. For cubes use bpy.ops.mesh.primitive_cube_add. For spheres use bpy.ops.mesh.primitive_uv_sphere_add. For cylinders use bpy.ops.mesh.primitive_cylinder_add. For cones use bpy.ops.mesh.primitive_cone_add. Do not use bpy.ops.mesh.create_plane or other nonexistent mesh operators. Use exactly scene.render.engine = 'BLENDER_EEVEE'. Do NOT use BLENDER_EEVEE_NEXT. Configure vertical video at 1080x1920, resolution percentage 100, and 24 FPS. Convert the story duration to frames and set scene.frame_start = 1 and scene.frame_end accordingly. The scene MUST contain actual animation across the timeline using keyframes or equivalent Blender animation data. Do not create only a static frame. Create an active camera and at least one light. Prefer reliability and fast rendering over visual complexity. The script must save the Blender file to /tmp/diboo_story_scene.blend. At the end print DIBOO BLENDER SCENE CREATED, STORY TITLE, TOTAL FRAMES, FPS, RESOLUTION and BLENDER SCENE READY. Return ONLY the JSON object. No Markdown. No code fences. No explanations."
+            "input": "You are the story and optimized Blender procedural generation engine for Project_Diboo. Generate BOTH a structured story and a complete Blender Python script in ONE response. The story is for an original 3D cartoon YouTube Short. It must be highly visual and understandable without audio. Use simple objects, animals, vehicles, machines, or simple characters. Do not copy copyrighted characters, franchises, companies, or protected visual styles. Target approximately 50 seconds and remain between 40 and 60 seconds. Narration language must be English. Story structure: HOOK 0-5 seconds, SITUATION 5-12 seconds, PROBLEM 12-25 seconds, ACTION 25-40 seconds, RESOLUTION 40-50 seconds, PAYOFF 50-55 seconds. Create strong visual storytelling, clear cause and effect, simple camera movements, and simple SFX suggestions. Return ONLY valid JSON with exactly these top-level fields: story and blender_script. The story object MUST contain exactly: title, duration_target, language, hook, narration, scenes. duration_target MUST be a plain integer. language MUST be en. Every scene MUST contain: duration, description, camera, action, sfx. Scene duration MUST be a plain integer. The blender_script field MUST contain a complete standalone Python script for Blender 4.0.2. The Blender script must use bpy and generate the scene procedurally. It must create the environment, ground, story objects, simple characters when needed, materials, camera, lighting, and animation. Do not require external assets, addons, downloads, internet access, or external files. Use simple primitives such as cubes, spheres, cylinders, cones and planes. Use exactly scene.render.engine = 'BLENDER_EEVEE'. Configure vertical video at 1080x1920, resolution percentage 100, and 24 FPS. Convert story duration to frames and set scene.frame_start = 1 and scene.frame_end accordingly. Create an active camera and at least one light. The scene MUST be optimized for very fast Eevee rendering on a CPU-only/headless GitHub Actions runner. HARD COMPLEXITY LIMITS: maximum 24 mesh objects, maximum 3 lights, maximum 1 camera, maximum 24 total scene objects whenever possible. Prefer reusing the same objects instead of creating many duplicate objects. Do not use particle systems. Do not use fluid simulations. Do not use rigid body simulations. Do not use cloth simulations. Do not use smoke. Do not use fire. Do not use volumetric effects. Do not use geometry nodes. Do not use hair. Do not use grease pencil. Do not use Freestyle. Do not use subdivision modifiers. Do not use boolean-heavy geometry. Do not use displacement. Do not use complex shader node networks. Do not use image textures. Do not use external textures. Do not use HDRIs. Do not use depth of field. Do not use motion blur. Do not use screen space reflections. Do not use screen space refraction. Do not use ray tracing. Do not use compositing nodes. Do not create thousands of small objects. Do not create dense meshes. Use low segment primitives, normally 8 to 16 segments. Use simple Principled BSDF materials with solid colors. Use simple area, point, or sun lights. Keep animation simple: keyframe only the few important objects needed for the story. Avoid expensive per-frame Python handlers or drivers. Do not run bpy.ops.render.render from inside the generated script. The workflow will render the saved blend separately. The script MUST save the Blender file to /tmp/diboo_story_scene.blend. At the end print DIBOO BLENDER SCENE CREATED, STORY TITLE, TOTAL FRAMES, FPS, RESOLUTION and BLENDER SCENE READY. Return ONLY the JSON object. No Markdown. No code fences. No explanations."
           }
           JSON
 
@@ -165,7 +166,18 @@ jobs:
 
           output_text = output_text.strip()
 
-          generated = json.loads(output_text)
+          try:
+              generated = json.loads(output_text)
+
+          except json.JSONDecodeError as error:
+
+              print("")
+              print("===== INVALID GEMINI JSON =====")
+              print(output_text)
+
+              raise RuntimeError(
+                  f"Gemini did not return valid JSON: {error}"
+              )
 
           if "story" not in generated:
               raise RuntimeError(
@@ -243,14 +255,12 @@ jobs:
 
           print("")
           print("===== BLENDER SCRIPT CREATED =====")
-
           print(
               "blender_scene/blender_scene.py"
           )
 
           print("")
           print("Script size:")
-
           print(
               len(blender_script),
               "characters"
@@ -299,7 +309,6 @@ jobs:
                   )
 
           if story["language"].lower() != "en":
-
               raise RuntimeError(
                   "Story language must be English (en)."
               )
@@ -384,6 +393,15 @@ jobs:
               start=1
           ):
 
+              if not isinstance(
+                  scene,
+                  dict
+              ):
+
+                  raise RuntimeError(
+                      f"Scene {index} is not an object."
+                  )
+
               for field in scene_fields:
 
                   if field not in scene:
@@ -395,6 +413,15 @@ jobs:
               raw_scene_duration = scene["duration"]
 
               if isinstance(
+                  raw_scene_duration,
+                  bool
+              ):
+
+                  raise RuntimeError(
+                      f"Scene {index} duration cannot be boolean."
+                  )
+
+              elif isinstance(
                   raw_scene_duration,
                   str
               ):
@@ -414,10 +441,19 @@ jobs:
                       match.group(0)
                   )
 
-              else:
+              elif isinstance(
+                  raw_scene_duration,
+                  (int, float)
+              ):
 
                   scene_duration = int(
                       raw_scene_duration
+                  )
+
+              else:
+
+                  raise RuntimeError(
+                      f"Scene {index} duration must be numeric."
                   )
 
               if scene_duration <= 0:
@@ -460,12 +496,22 @@ jobs:
           )
 
           print("")
+          print("LANGUAGE:")
+          print(story["language"])
+
+          print("")
           print("SCENES:")
           print(len(scenes))
 
           print("")
           print("TOTAL SCENE DURATION:")
-          print(total_scene_duration, "seconds")
+          print(
+              total_scene_duration,
+              "seconds"
+          )
+
+          print("")
+          print("story.json is valid.")
           PY
 
 
@@ -488,7 +534,18 @@ jobs:
             blender_scene/blender_scene.py
 
           echo ""
-          echo "Python syntax: PASSED"
+          echo "Blender Python syntax:"
+          echo "PASSED"
+
+          echo ""
+          echo "Script:"
+          ls -lh \
+            blender_scene/blender_scene.py
+
+          echo ""
+          echo "================================"
+          echo "DIBOO BLENDER SCRIPT: PASSED"
+          echo "================================"
 
 
       # ============================================================
@@ -500,14 +557,19 @@ jobs:
           set -e
 
           echo "================================"
-          echo "DIBOO BLENDER SETUP"
+          echo "DIBOO BLENDER INSTALLATION"
           echo "================================"
 
           if command -v blender >/dev/null 2>&1; then
 
+            echo ""
+            echo "Blender already installed:"
             blender --version
 
           else
+
+            echo ""
+            echo "Installing Blender..."
 
             sudo apt-get update
 
@@ -518,129 +580,32 @@ jobs:
               libgl1 \
               libglib2.0-0
 
+            echo ""
+            echo "Blender installation completed."
+
             blender --version
 
           fi
 
 
       # ============================================================
-      # 6. AUTO-FIX KNOWN BLENDER 4.0.2 OPERATORS
+      # 6. GENERATE + OPTIMIZE BLENDER SCENE
       # ============================================================
 
-      - name: Fix Blender 4.0.2 compatibility
-        run: |
-          set -e
-
-          echo "================================"
-          echo "DIBOO BLENDER COMPATIBILITY FIX"
-          echo "================================"
-
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path(
-              "blender_scene/blender_scene.py"
-          )
-
-          text = path.read_text(
-              encoding="utf-8"
-          )
-
-          replacements = {
-              "bpy.ops.mesh.create_plane":
-              "bpy.ops.mesh.primitive_plane_add",
-
-              "bpy.ops.mesh.create_cube":
-              "bpy.ops.mesh.primitive_cube_add",
-
-              "bpy.ops.mesh.create_uv_sphere":
-              "bpy.ops.mesh.primitive_uv_sphere_add",
-
-              "bpy.ops.mesh.create_cylinder":
-              "bpy.ops.mesh.primitive_cylinder_add",
-
-              "bpy.ops.mesh.create_cone":
-              "bpy.ops.mesh.primitive_cone_add"
-          }
-
-          changed = False
-
-          for old, new in replacements.items():
-
-              if old in text:
-
-                  print(
-                      "FIX:",
-                      old,
-                      "->",
-                      new
-                  )
-
-                  text = text.replace(
-                      old,
-                      new
-                  )
-
-                  changed = True
-
-          path.write_text(
-              text,
-              encoding="utf-8"
-          )
-
-          if changed:
-
-              print("")
-              print(
-                  "Blender compatibility fixes applied."
-              )
-
-          else:
-
-              print("")
-              print(
-                  "No known compatibility fixes required."
-              )
-          PY
-
-          echo ""
-          echo "Rechecking Python syntax..."
-
-          python3 -m py_compile \
-            blender_scene/blender_scene.py
-
-          echo ""
-          echo "================================"
-          echo "BLENDER COMPATIBILITY CHECK: PASSED"
-          echo "================================"
-
-
-      # ============================================================
-      # 7. GENERATE BLENDER SCENE
-      # ============================================================
-
-      - name: Generate Blender scene
+      - name: Generate and optimize Blender scene
         run: |
           set -e
 
           echo "================================"
           echo "DIBOO BLENDER SCENE GENERATOR"
+          echo "OPTIMIZED EEVEE SETTINGS"
           echo "================================"
-
-          rm -f \
-            /tmp/diboo_story_scene.blend
 
           blender \
             -b \
-            --python \
-            blender_scene/blender_scene.py
+            --python blender_scene/blender_scene.py
 
-          echo ""
-          echo "================================"
-          echo "DIBOO BLENDER SCENE GENERATION FINISHED"
-          echo "================================"
-
-          if [ ! -f "/tmp/diboo_story_scene.blend" ]; then
+          if [ ! -f /tmp/diboo_story_scene.blend ]; then
 
             echo ""
             echo "ERROR:"
@@ -651,28 +616,175 @@ jobs:
           fi
 
           echo ""
-          echo "BLENDER FILE:"
-
-          ls -lh \
-            /tmp/diboo_story_scene.blend
-
-
-      # ============================================================
-      # 8. INSPECT ANIMATION
-      # ============================================================
-
-      - name: Inspect Blender animation
-        run: |
-          set -e
-
           echo "================================"
-          echo "DIBOO ANIMATION INSPECTION"
+          echo "DIBOO BLENDER SCENE CREATED"
           echo "================================"
 
-          cat > /tmp/inspect_diboo_scene.py <<'PY'
+          cat > /tmp/optimize_scene.py <<'PY'
           import bpy
 
+          print("")
+          print("================================")
+          print("DIBOO BLENDER OPTIMIZATION")
+          print("================================")
+
           scene = bpy.context.scene
+
+          # --------------------------------------------------------
+          # RENDER FORMAT
+          # --------------------------------------------------------
+
+          scene.render.engine = 'BLENDER_EEVEE'
+
+          scene.render.resolution_x = 1080
+          scene.render.resolution_y = 1920
+          scene.render.resolution_percentage = 100
+
+          scene.render.fps = 24
+          scene.render.fps_base = 1.0
+
+          scene.render.image_settings.file_format = 'PNG'
+          scene.render.image_settings.color_mode = 'RGB'
+          scene.render.image_settings.color_depth = '8'
+
+          scene.render.film_transparent = False
+
+          scene.render.use_file_extension = True
+
+          scene.render.use_freestyle = False
+          scene.render.use_compositing = False
+
+          # --------------------------------------------------------
+          # BLENDER SIMPLIFICATION
+          # --------------------------------------------------------
+
+          if hasattr(scene.render, "use_simplify"):
+              scene.render.use_simplify = True
+
+          if hasattr(
+              scene.render,
+              "simplify_subdivision_render"
+          ):
+              scene.render.simplify_subdivision_render = 0
+
+          if hasattr(
+              scene.render,
+              "simplify_subdivision"
+          ):
+              scene.render.simplify_subdivision = 0
+
+          if hasattr(
+              scene.render,
+              "simplify_volumes"
+          ):
+              scene.render.simplify_volumes = 0.25
+
+          # --------------------------------------------------------
+          # EEVEE OPTIMIZATION
+          # --------------------------------------------------------
+
+          eevee = scene.eevee
+
+          if hasattr(
+              eevee,
+              "taa_render_samples"
+          ):
+              eevee.taa_render_samples = 8
+
+          if hasattr(
+              eevee,
+              "taa_samples"
+          ):
+              eevee.taa_samples = 4
+
+          if hasattr(
+              eevee,
+              "use_raytracing"
+          ):
+              eevee.use_raytracing = False
+
+          if hasattr(
+              eevee,
+              "use_volumetric_shadows"
+          ):
+              eevee.use_volumetric_shadows = False
+
+          if hasattr(
+              eevee,
+              "use_bokeh_jittered"
+          ):
+              eevee.use_bokeh_jittered = False
+
+          if hasattr(
+              eevee,
+              "use_overscan"
+          ):
+              eevee.use_overscan = False
+
+          if hasattr(
+              eevee,
+              "shadow_resolution_scale"
+          ):
+              eevee.shadow_resolution_scale = 0.5
+
+          if hasattr(
+              eevee,
+              "shadow_ray_count"
+          ):
+              eevee.shadow_ray_count = 1
+
+          if hasattr(
+              eevee,
+              "shadow_step_count"
+          ):
+              eevee.shadow_step_count = 4
+
+          # --------------------------------------------------------
+          # DISABLE EXPENSIVE OBJECT FEATURES
+          # --------------------------------------------------------
+
+          modifier_count = 0
+
+          for obj in scene.objects:
+
+              if obj.type == 'MESH':
+
+                  for modifier in obj.modifiers:
+
+                      modifier_count += 1
+
+                      try:
+                          modifier.show_render = False
+                      except:
+                          pass
+
+              if obj.type == 'LIGHT':
+
+                  if hasattr(
+                      obj.data,
+                      "use_shadow"
+                  ):
+                      obj.data.use_shadow = True
+
+          # --------------------------------------------------------
+          # RENDER THREADS
+          # --------------------------------------------------------
+
+          scene.render.threads_mode = 'AUTO'
+
+          # --------------------------------------------------------
+          # LOCK INTERFACE WHEN AVAILABLE
+          # --------------------------------------------------------
+
+          if hasattr(
+              scene.render,
+              "use_lock_interface"
+          ):
+              scene.render.use_lock_interface = True
+
+          # --------------------------------------------------------
+          # FRAME INFORMATION
+          # --------------------------------------------------------
 
           total_frames = (
               scene.frame_end
@@ -680,30 +792,75 @@ jobs:
               + 1
           )
 
-          print("")
-          print("================================")
-          print("DIBOO ANIMATION INFORMATION")
-          print("================================")
+          # --------------------------------------------------------
+          # SCENE STATISTICS
+          # --------------------------------------------------------
+
+          mesh_objects = [
+              obj
+              for obj in scene.objects
+              if obj.type == 'MESH'
+          ]
+
+          lights = [
+              obj
+              for obj in scene.objects
+              if obj.type == 'LIGHT'
+          ]
+
+          cameras = [
+              obj
+              for obj in scene.objects
+              if obj.type == 'CAMERA'
+          ]
 
           print("")
-          print("FRAME START:")
-          print(scene.frame_start)
+          print("OBJECT STATISTICS")
+          print("--------------------------------")
+          print(
+              "Total objects:",
+              len(scene.objects)
+          )
+          print(
+              "Mesh objects:",
+              len(mesh_objects)
+          )
+          print(
+              "Lights:",
+              len(lights)
+          )
+          print(
+              "Cameras:",
+              len(cameras)
+          )
+          print(
+              "Modifiers:",
+              modifier_count
+          )
 
           print("")
-          print("FRAME END:")
-          print(scene.frame_end)
+          print("ANIMATION")
+          print("--------------------------------")
+          print(
+              "Frame start:",
+              scene.frame_start
+          )
+          print(
+              "Frame end:",
+              scene.frame_end
+          )
+          print(
+              "Total frames:",
+              total_frames
+          )
+          print(
+              "FPS:",
+              scene.render.fps
+          )
 
           print("")
-          print("TOTAL FRAMES:")
-          print(total_frames)
-
-          print("")
-          print("FPS:")
-          print(scene.render.fps)
-
-          print("")
-          print("RESOLUTION:")
-
+          print("RESOLUTION")
+          print("--------------------------------")
           print(
               scene.render.resolution_x,
               "x",
@@ -711,87 +868,313 @@ jobs:
           )
 
           print("")
-          print("CAMERA:")
+          print("EEVEE RENDER SAMPLES")
+          print("--------------------------------")
 
-          if scene.camera:
-              print(scene.camera.name)
-          else:
-              print("NONE")
-
-          print("")
-          print("OBJECT COUNT:")
-          print(len(scene.objects))
+          if hasattr(
+              eevee,
+              "taa_render_samples"
+          ):
+              print(
+                  "Render samples:",
+                  eevee.taa_render_samples
+              )
 
           print("")
           print("================================")
+          print("DIBOO BLENDER OPTIMIZATION DONE")
+          print("================================")
+
+          bpy.ops.wm.save_as_mainfile(
+              filepath="/tmp/diboo_story_scene.blend"
+          )
+
+          print("")
+          print("Optimized blend saved.")
           PY
 
           blender \
-            -b \
-            /tmp/diboo_story_scene.blend \
-            --python \
-            /tmp/inspect_diboo_scene.py
+            -b /tmp/diboo_story_scene.blend \
+            --python /tmp/optimize_scene.py
+
+          echo ""
+          echo "================================"
+          echo "DIBOO OPTIMIZED BLEND READY"
+          echo "================================"
+
+          ls -lh \
+            /tmp/diboo_story_scene.blend
 
 
       # ============================================================
-      # 9. PREPARE FULL RENDER
+      # 7. BENCHMARK 24 FRAMES
       # ============================================================
 
-      - name: Prepare full animation render
+      - name: Benchmark Blender render
+        run: |
+          set -e
+          set -o pipefail
+
+          echo "================================"
+          echo "DIBOO BLENDER PERFORMANCE TEST"
+          echo "================================"
+
+          mkdir -p /tmp/diboo_benchmark
+
+          FRAME_START=1
+          FRAME_END=24
+
+          echo ""
+          echo "Benchmark frames:"
+          echo "$FRAME_START -> $FRAME_END"
+
+          echo ""
+          echo "Starting 24-frame benchmark..."
+
+          /usr/bin/time \
+            -f "%e" \
+            -o benchmark_seconds.txt \
+            blender \
+              -b \
+              /tmp/diboo_story_scene.blend \
+              -s $FRAME_START \
+              -e $FRAME_END \
+              -o /tmp/diboo_benchmark/frame_ \
+              -F PNG \
+              -x 1 \
+              -a \
+            2>&1 | tee benchmark.log
+
+          BENCHMARK_SECONDS=$(cat benchmark_seconds.txt)
+
+          echo ""
+          echo "Benchmark seconds:"
+          echo "$BENCHMARK_SECONDS"
+
+          python3 - <<'PY'
+          import json
+          import math
+
+          with open(
+              "story.json",
+              "r",
+              encoding="utf-8"
+          ) as f:
+              story = json.load(f)
+
+          duration = int(
+              story["duration_target"]
+          )
+
+          fps = 24
+
+          total_frames = (
+              duration * fps
+          )
+
+          benchmark_frames = 24
+
+          with open(
+              "benchmark_seconds.txt",
+              "r",
+              encoding="utf-8"
+          ) as f:
+              benchmark_seconds = float(
+                  f.read().strip()
+              )
+
+          estimated_seconds = (
+              benchmark_seconds
+              * total_frames
+              / benchmark_frames
+          )
+
+          estimated_minutes = (
+              estimated_seconds
+              / 60
+          )
+
+          print("")
+          print("================================")
+          print("DIBOO RENDER BENCHMARK RESULT")
+          print("================================")
+
+          print("")
+          print("Story duration:")
+          print(
+              duration,
+              "seconds"
+          )
+
+          print("")
+          print("Estimated total frames:")
+          print(
+              total_frames
+          )
+
+          print("")
+          print("Benchmark frames:")
+          print(
+              benchmark_frames
+          )
+
+          print("")
+          print("Benchmark time:")
+          print(
+              round(
+                  benchmark_seconds,
+                  2
+              ),
+              "seconds"
+          )
+
+          print("")
+          print("ESTIMATED FULL RENDER:")
+          print(
+              round(
+                  estimated_minutes,
+                  2
+              ),
+              "minutes"
+          )
+
+          print("================================")
+
+          with open(
+              "render_estimate.json",
+              "w",
+              encoding="utf-8"
+          ) as f:
+
+              json.dump(
+                  {
+                      "duration_seconds": duration,
+                      "fps": fps,
+                      "total_frames": total_frames,
+                      "benchmark_frames": benchmark_frames,
+                      "benchmark_seconds": benchmark_seconds,
+                      "estimated_full_render_seconds": estimated_seconds,
+                      "estimated_full_render_minutes": estimated_minutes
+                  },
+                  f,
+                  indent=2
+              )
+          PY
+
+
+      # ============================================================
+      # 8. STOP IF RENDER IS STILL TOO SLOW
+      # ============================================================
+
+      - name: Check optimized render target
         run: |
           set -e
 
           echo "================================"
-          echo "DIBOO FULL RENDER PREPARATION"
+          echo "DIBOO RENDER TARGET CHECK"
           echo "================================"
 
-          rm -rf \
-            /tmp/diboo_full_render
+          ESTIMATED_MINUTES=$(python3 - <<'PY'
+          import json
 
-          mkdir -p \
-            /tmp/diboo_full_render
+          with open(
+              "render_estimate.json",
+              "r",
+              encoding="utf-8"
+          ) as f:
+              data = json.load(f)
+
+          print(
+              data[
+                  "estimated_full_render_minutes"
+              ]
+          )
+          PY
+          )
 
           echo ""
-          echo "Render directory:"
-          echo "/tmp/diboo_full_render"
+          echo "Estimated full render:"
+          echo "$ESTIMATED_MINUTES minutes"
+
+          MAX_MINUTES=75
 
           echo ""
-          echo "Render format:"
-          echo "PNG"
+          echo "Maximum accepted target:"
+          echo "$MAX_MINUTES minutes"
 
-          echo ""
-          echo "Render mode:"
-          echo "FULL ANIMATION"
+          python3 - <<PY
+          estimated = float("$ESTIMATED_MINUTES")
+          maximum = float("$MAX_MINUTES")
+
+          if estimated > maximum:
+              print("")
+              print("================================")
+              print("DIBOO RENDER STILL TOO SLOW")
+              print("================================")
+              print("")
+              print(
+                  f"Estimated render: {estimated:.2f} minutes"
+              )
+              print(
+                  f"Target limit: {maximum:.2f} minutes"
+              )
+              print("")
+              print(
+                  "The full animation was NOT rendered."
+              )
+              print(
+                  "This prevents another multi-hour test."
+              )
+              raise SystemExit(1)
+
+          print("")
+          print("================================")
+          print("DIBOO RENDER TARGET ACCEPTED")
+          print("================================")
+          print("")
+          print(
+              f"Estimated render: {estimated:.2f} minutes"
+          )
+          PY
 
 
       # ============================================================
-      # 10. RENDER COMPLETE ANIMATION
+      # 9. RENDER COMPLETE ANIMATION
       # ============================================================
 
       - name: Render complete Blender animation
         run: |
           set -e
+          set -o pipefail
 
           echo "================================"
           echo "DIBOO FULL ANIMATION RENDER"
           echo "================================"
 
+          mkdir -p /tmp/diboo_render
+
+          echo ""
+          echo "Starting optimized full animation render..."
+
           blender \
             -b \
             /tmp/diboo_story_scene.blend \
-            -o \
-            /tmp/diboo_full_render/frame_ \
+            -o /tmp/diboo_render/frame_ \
             -F PNG \
-            -a
+            -x 1 \
+            -a \
+            2>&1 | tee full_render.log
 
           echo ""
           echo "================================"
           echo "DIBOO FULL ANIMATION RENDER FINISHED"
           echo "================================"
 
+          ls -lh /tmp/diboo_render | head -20
+
 
       # ============================================================
-      # 11. VERIFY COMPLETE ANIMATION
+      # 10. VERIFY COMPLETE ANIMATION RENDER
       # ============================================================
 
       - name: Verify complete animation render
@@ -802,58 +1185,60 @@ jobs:
           echo "DIBOO FULL RENDER VERIFICATION"
           echo "================================"
 
-          FRAME_COUNT=$(find \
-            /tmp/diboo_full_render \
+          EXPECTED_FRAMES=$(python3 - <<'PY'
+          import json
+
+          with open(
+              "render_estimate.json",
+              "r",
+              encoding="utf-8"
+          ) as f:
+              data = json.load(f)
+
+          print(
+              data["total_frames"]
+          )
+          PY
+          )
+
+          ACTUAL_FRAMES=$(find \
+            /tmp/diboo_render \
             -type f \
             -name "*.png" \
             | wc -l)
 
           echo ""
-          echo "PNG FRAME COUNT:"
-          echo "$FRAME_COUNT"
+          echo "EXPECTED PNG FRAMES:"
+          echo "$EXPECTED_FRAMES"
 
-          if [ "$FRAME_COUNT" -lt 2 ]; then
+          echo ""
+          echo "ACTUAL PNG FRAMES:"
+          echo "$ACTUAL_FRAMES"
+
+          if [ "$ACTUAL_FRAMES" -lt "$EXPECTED_FRAMES" ]; then
 
             echo ""
             echo "ERROR:"
-            echo "The full animation did not produce"
-            echo "multiple PNG frames."
+            echo "Full animation render is incomplete."
 
             exit 1
 
           fi
 
-          FIRST_FRAME=$(find \
-            /tmp/diboo_full_render \
-            -type f \
-            -name "*.png" \
-            | sort \
-            | head -n 1)
-
-          LAST_FRAME=$(find \
-            /tmp/diboo_full_render \
-            -type f \
-            -name "*.png" \
-            | sort \
-            | tail -n 1)
+          echo ""
+          echo "================================"
+          echo "DIBOO FULL RENDER: PASSED"
+          echo "================================"
 
           echo ""
-          echo "FIRST FRAME:"
-          echo "$FIRST_FRAME"
+          echo "Animation frames:"
+          echo "$ACTUAL_FRAMES"
 
           echo ""
-          echo "LAST FRAME:"
-          echo "$LAST_FRAME"
-
-          echo ""
-          echo "FIRST FRAME SIZE:"
-          ls -lh "$FIRST_FRAME"
-
-          echo ""
-          echo "LAST FRAME SIZE:"
-          ls -lh "$LAST_FRAME"
+          echo "Render directory:"
+          du -sh /tmp/diboo_render
 
           echo ""
           echo "================================"
-          echo "DIBOO FULL ANIMATION TEST: PASSED"
+          echo "PROJECT_DIBOO STEP COMPLETE"
           echo "================================"
