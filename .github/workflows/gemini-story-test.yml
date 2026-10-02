@@ -30,7 +30,7 @@ jobs:
           cat > request.json <<'JSON'
           {
             "model": "gemini-3.5-flash-lite",
-            "input": "You are the story and Blender procedural generation engine for Project_Diboo. Generate BOTH a structured story and a complete Blender Python script in ONE response. The story is for an original 3D cartoon YouTube Short. It must be highly visual and understandable without audio. Use simple objects, animals, vehicles, machines, or simple characters. Do not copy copyrighted characters, franchises, companies, or protected visual styles. Target approximately 50 seconds and remain between 40 and 60 seconds. Narration language must be English. Story structure: HOOK 0-5 seconds, SITUATION 5-12 seconds, PROBLEM 12-25 seconds, ACTION 25-40 seconds, RESOLUTION 40-50 seconds, PAYOFF 50-55 seconds. Create strong visual storytelling, clear cause and effect, dynamic camera movements, and SFX suggestions. Return ONLY valid JSON with exactly these top-level fields: story and blender_script. The story object MUST contain exactly: title, duration_target, language, hook, narration, scenes. duration_target MUST be a plain integer. language MUST be en. Every scene MUST contain: duration, description, camera, action, sfx. Scene duration MUST be a plain integer. The blender_script field MUST contain a complete standalone Python script for Blender 4.0.2. The script MUST be conservative, deterministic and reliable. It MUST NOT depend on external files, addons, downloads, textures, fonts, images, sounds or network access. It MUST run correctly in Blender 4.0.2 background mode using: blender -b --python blender_scene.py. The script MUST import bpy and math only unless another Python standard-library module is absolutely necessary. It MUST first clear the default scene using bpy.ops.object.select_all(action='SELECT') and bpy.ops.object.delete(use_global=False). Use only stable Blender 4.0.2 operators. For planes ALWAYS use bpy.ops.mesh.primitive_plane_add. NEVER use bpy.ops.mesh.create_plane. Use cubes, spheres, cylinders, cones and planes only. Create materials using bpy.data.materials.new and diffuse_color whenever possible. If using nodes, NEVER access Principled BSDF inputs by numeric indexes. NEVER use inputs[21], inputs[20], inputs[0] or any numeric socket index. Access sockets only by name using node.inputs.get('Base Color'), node.inputs.get('Roughness'), node.inputs.get('Metallic'), node.inputs.get('Specular IOR Level'), node.inputs.get('Alpha'), etc. Color values MUST be 4-value RGBA tuples. Float values MUST be single floats. Create the camera BEFORE creating animation. Set scene.camera = camera. Create at least one light. Use scene.render.engine = 'BLENDER_EEVEE' exactly. NEVER use BLENDER_EEVEE_NEXT. Configure scene.render.resolution_x = 1080, scene.render.resolution_y = 1920, scene.render.resolution_percentage = 100 and scene.render.fps = 24. Convert duration_target to frames. Set scene.frame_start = 1 and scene.frame_end = duration_target * scene.render.fps. Keep geometry and lighting simple for fast EEVEE rendering. Avoid simulations, particle systems, geometry nodes, compositing, volumetrics, cloth, smoke, fire, rigid body simulations and expensive modifiers. Prefer simple keyframe animation. Every animated object must already exist before keyframes are inserted. Before saving, verify that scene.camera is not None. The script MUST save the Blender scene using bpy.ops.wm.save_as_mainfile(filepath='/tmp/diboo_story_scene.blend'). After saving, verify that the file exists using Python standard library os.path.exists. If the file does not exist, raise RuntimeError. At the end print exactly these diagnostic messages: DIBOO BLENDER SCENE CREATED, STORY TITLE, TOTAL FRAMES, FPS, RESOLUTION, BLENDER SCENE READY. The script must not render anything itself. Return ONLY the JSON object. No Markdown. No code fences. No explanations."
+            "input": "You are the story and Blender procedural generation engine for Project_Diboo. Generate BOTH a structured story and a complete Blender Python script in ONE response. The story is for an original 3D cartoon YouTube Short. It must be highly visual and understandable without audio. Use simple objects, animals, vehicles, machines, or simple characters. Do not copy copyrighted characters, franchises, companies, or protected visual styles. Target approximately 50 seconds and remain between 40 and 60 seconds. Narration language must be English. Story structure: HOOK 0-5 seconds, SITUATION 5-12 seconds, PROBLEM 12-25 seconds, ACTION 25-40 seconds, RESOLUTION 40-50 seconds, PAYOFF 50-55 seconds. Create strong visual storytelling, clear cause and effect, dynamic camera movements, and SFX suggestions. Return ONLY valid JSON with exactly these top-level fields: story and blender_script. The story object MUST contain exactly: title, duration_target, language, hook, narration, scenes. duration_target MUST be a plain integer. language MUST be en. Every scene MUST contain: duration, description, camera, action, sfx. Scene duration MUST be a plain integer. The blender_script field MUST contain a complete standalone Python script for Blender 4.0.2. The script MUST be conservative, deterministic and reliable. It MUST NOT depend on external files, addons, downloads, textures, fonts, images, sounds or network access. It MUST run correctly in Blender 4.0.2 background mode using: blender -b --python blender_scene.py. The script MUST import bpy and math only unless another Python standard-library module is absolutely necessary. It MUST first clear the default scene using bpy.ops.object.select_all(action='SELECT') and bpy.ops.object.delete(use_global=False). Use only stable Blender 4.0.2 operators. For planes ALWAYS use bpy.ops.mesh.primitive_plane_add. NEVER use bpy.ops.mesh.create_plane. Use cubes, spheres, cylinders, cones and planes only. Create materials using bpy.data.materials.new and diffuse_color whenever possible. If using nodes, NEVER access Principled BSDF inputs by numeric indexes. NEVER use inputs[21], inputs[20], inputs[0] or any numeric socket index. Access sockets only by name using node.inputs.get('Base Color'), node.inputs.get('Roughness'), node.inputs.get('Metallic'), node.inputs.get('Specular IOR Level'), node.inputs.get('Alpha'), etc. Color values MUST be 4-value RGBA tuples. Float values MUST be single floats. Create the camera BEFORE creating animation. Set scene.camera = camera. Create at least one light. Use scene.render.engine = 'BLENDER_EEVEE' exactly. NEVER use BLENDER_EEVEE_NEXT. Configure vertical video at 1080x1920, resolution percentage 100 and 24 FPS. Convert duration_target to frames. Set scene.frame_start = 1 and scene.frame_end accordingly. Keep geometry and lighting simple for fast EEVEE rendering. Avoid simulations, particle systems, geometry nodes, compositing, volumetrics, cloth, smoke, fire, rigid body simulations and expensive modifiers. Prefer simple keyframe animation. Every animated object must already exist before keyframes are inserted. Before saving, verify that scene.camera is not None. The script MUST save the Blender scene using bpy.ops.wm.save_as_mainfile(filepath='/tmp/diboo_story_scene.blend'). After saving, verify that the file exists using Python standard library os.path.exists. At the end print exactly these diagnostic messages: DIBOO BLENDER SCENE CREATED, STORY TITLE, TOTAL FRAMES, FPS, RESOLUTION, BLENDER SCENE READY. The script must not render anything itself. Return ONLY the JSON object. No Markdown. No code fences. No explanations."
           }
           JSON
 
@@ -237,10 +237,7 @@ jobs:
 
           print("")
           print("===== BLENDER SCRIPT CREATED =====")
-
-          print(
-              "blender_scene/blender_scene.py"
-          )
+          print("blender_scene/blender_scene.py")
 
           print("")
           print("Script size:")
@@ -516,7 +513,7 @@ jobs:
 
 
       # ============================================================
-      # 6. BLENDER SCENE GENERATION WITH AUTO-RECOVERY
+      # 6. GENERATE BLENDER SCENE
       # ============================================================
 
       - name: Generate Blender scene
@@ -581,9 +578,6 @@ jobs:
             echo "BLENDER SCENE GENERATION FAILED"
             echo "================================"
 
-            echo ""
-            echo "===== LAST BLENDER OUTPUT ====="
-
             tail -n 120 \
               blender_scene/blender_run.log \
               || true
@@ -609,6 +603,7 @@ jobs:
 
             python3 - <<'PY'
           import json
+
           from pathlib import Path
 
           script = Path(
@@ -782,7 +777,7 @@ jobs:
 
 
       # ============================================================
-      # 7. FAST RENDER CONFIGURATION
+      # 7. CONFIGURE FAST BLENDER RENDER
       # ============================================================
 
       - name: Configure fast Blender render
@@ -790,20 +785,17 @@ jobs:
           set -e
 
           echo "================================"
-          echo "DIBOO FAST RENDER CONFIGURATION"
+          echo "DIBOO FAST BLENDER RENDER CONFIGURATION"
           echo "================================"
 
           python3 - <<'PY'
-          from pathlib import Path
-
-          source = Path(
-              "blender_scene/blender_scene.py"
-          ).read_text(
-              encoding="utf-8"
-          )
-
-          patch = r'''
           import bpy
+
+          blend_file = "/tmp/diboo_story_scene.blend"
+
+          bpy.ops.wm.open_mainfile(
+              filepath=blend_file
+          )
 
           scene = bpy.context.scene
 
@@ -817,78 +809,43 @@ jobs:
 
           scene.render.image_settings.file_format = 'PNG'
 
-          scene.render.resolution_percentage = 100
+          scene.frame_start = 1
+          scene.frame_end = 1200
 
-          # Fast EEVEE configuration.
+          scene.render.filepath = "/tmp/diboo_render/frame_"
+
           if hasattr(scene, "eevee"):
-              if hasattr(scene.eevee, "taa_render_samples"):
+              try:
                   scene.eevee.taa_render_samples = 8
+              except Exception:
+                  pass
 
-          if hasattr(scene, "render"):
-              if hasattr(scene.render, "image_settings"):
-                  scene.render.image_settings.color_mode = 'RGBA'
-
-          print("")
-          print("================================")
-          print("DIBOO FAST RENDER CONFIGURATION")
-          print("================================")
+          bpy.ops.wm.save_as_mainfile(
+              filepath=blend_file
+          )
 
           print("")
-          print("EEVEE samples:")
-          print("8")
-
-          print("")
-          print("Resolution:")
-          print("1080x1920")
-
-          print("")
-          print("FPS:")
-          print("24")
+          print("Render configuration:")
+          print("EEVEE samples: 8")
+          print("Resolution: 1080x1920")
+          print("FPS: 24")
 
           print("")
           print("================================")
           print("DIBOO FORCED RENDER RANGE")
           print("================================")
-
-          scene.frame_start = 1
-          scene.frame_end = 1200
-
           print("")
           print("FRAME START:")
           print(scene.frame_start)
-
           print("")
           print("FRAME END:")
           print(scene.frame_end)
-
           print("")
           print("TOTAL EXPECTED FRAMES:")
-          print(scene.frame_end - scene.frame_start + 1)
-
-          bpy.ops.wm.save_as_mainfile(
-              filepath='/tmp/diboo_story_scene.blend'
-          )
-          '''
-
-          Path(
-              "blender_scene/fast_render_config.py"
-          ).write_text(
-              patch,
-              encoding="utf-8"
+          print(
+              scene.frame_end - scene.frame_start + 1
           )
           PY
-
-          blender \
-            -b \
-            /tmp/diboo_story_scene.blend \
-            --python blender_scene/fast_render_config.py
-
-          test -f /tmp/diboo_story_scene.blend
-
-          echo ""
-          echo "================================"
-          echo "FAST RENDER CONFIGURATION: PASSED"
-          echo "================================"
 
 
       # ============================================================
@@ -905,8 +862,7 @@ jobs:
 
           rm -rf /tmp/diboo_render
 
-          mkdir -p \
-            /tmp/diboo_render
+          mkdir -p /tmp/diboo_render
 
           blender \
             -b \
@@ -922,8 +878,7 @@ jobs:
           echo "DIBOO FULL ANIMATION RENDER FINISHED"
           echo "================================"
 
-          du -sh \
-            /tmp/diboo_render
+          du -sh /tmp/diboo_render
 
           FRAME_COUNT=$(find \
             /tmp/diboo_render \
@@ -937,12 +892,9 @@ jobs:
           echo "$FRAME_COUNT"
 
           if [ "$FRAME_COUNT" -ne 1200 ]; then
-
             echo ""
             echo "ERROR: Expected exactly 1200 PNG frames."
-
             exit 1
-
           fi
 
           echo ""
@@ -974,7 +926,7 @@ jobs:
 
 
       # ============================================================
-      # 9. VERIFY COMPLETE ANIMATION
+      # 9. VERIFY COMPLETE ANIMATION RENDER
       # ============================================================
 
       - name: Verify complete animation render
@@ -999,12 +951,9 @@ jobs:
           echo "$FRAME_COUNT"
 
           if [ "$FRAME_COUNT" -ne 1200 ]; then
-
             echo ""
             echo "ERROR: Expected exactly 1200 PNG frames."
-
             exit 1
-
           fi
 
           echo ""
@@ -1032,8 +981,7 @@ jobs:
           echo ""
           echo "TOTAL RENDER SIZE:"
 
-          du -sh \
-            /tmp/diboo_render
+          du -sh /tmp/diboo_render
 
           echo ""
           echo "================================"
@@ -1042,7 +990,7 @@ jobs:
 
 
       # ============================================================
-      # 10. INSTALL FFMPEG
+      # 10. PREPARE FFMPEG
       # ============================================================
 
       - name: Prepare FFmpeg
@@ -1056,7 +1004,8 @@ jobs:
           if command -v ffmpeg >/dev/null 2>&1; then
 
             echo ""
-            echo "FFmpeg already available."
+            echo "FFmpeg already available:"
+            ffmpeg -version | head -n 1
 
           else
 
@@ -1066,20 +1015,14 @@ jobs:
 
             sudo apt-get update
 
-            sudo apt-get install -y \
-              ffmpeg
+            sudo apt-get install -y ffmpeg
+
+            echo ""
+            echo "FFmpeg installation completed."
+
+            ffmpeg -version | head -n 1
 
           fi
-
-          echo ""
-          echo "FFmpeg version:"
-
-          ffmpeg -version | head -n 1
-
-          echo ""
-          echo "================================"
-          echo "DIBOO FFMPEG PREPARATION: PASSED"
-          echo "================================"
 
 
       # ============================================================
@@ -1091,44 +1034,8 @@ jobs:
           set -e
 
           echo "================================"
-          echo "DIBOO FINAL VIDEO ENCODING"
+          echo "DIBOO FINAL MP4 ENCODING"
           echo "================================"
-
-          test -d /tmp/diboo_render
-
-          FRAME_COUNT=$(find \
-            /tmp/diboo_render \
-            -maxdepth 1 \
-            -type f \
-            -name "*.png" \
-            | wc -l)
-
-          if [ "$FRAME_COUNT" -ne 1200 ]; then
-
-            echo ""
-            echo "ERROR: Expected 1200 frames before FFmpeg."
-
-            exit 1
-
-          fi
-
-          rm -f \
-            /tmp/diboo_story.mp4
-
-          echo ""
-          echo "Input frames:"
-          echo "$FRAME_COUNT"
-
-          echo ""
-          echo "Input:"
-          echo "1080x1920 PNG sequence"
-
-          echo ""
-          echo "FPS:"
-          echo "24"
-
-          echo ""
-          echo "Encoding H.264 MP4..."
 
           ffmpeg \
             -y \
@@ -1137,25 +1044,18 @@ jobs:
             -i /tmp/diboo_render/frame_%04d.png \
             -c:v libx264 \
             -preset veryfast \
-            -crf 20 \
+            -crf 18 \
             -pix_fmt yuv420p \
             -movflags +faststart \
-            -vf "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2" \
-            /tmp/diboo_story.mp4
+            /tmp/diboo_render/final.mp4
 
           echo ""
           echo "================================"
-          echo "DIBOO FINAL VIDEO ENCODE FINISHED"
+          echo "DIBOO FINAL MP4 CREATED"
           echo "================================"
-
-          test -s \
-            /tmp/diboo_story.mp4
-
-          echo ""
-          echo "FINAL MP4:"
 
           ls -lh \
-            /tmp/diboo_story.mp4
+            /tmp/diboo_render/final.mp4
 
 
       # ============================================================
@@ -1170,80 +1070,43 @@ jobs:
           echo "DIBOO FINAL MP4 VERIFICATION"
           echo "================================"
 
-          test -s \
-            /tmp/diboo_story.mp4
+          if [ ! -f /tmp/diboo_render/final.mp4 ]; then
+
+            echo ""
+            echo "ERROR: final.mp4 was not created."
+
+            exit 1
+
+          fi
+
+          FILE_SIZE=$(stat -c%s \
+            /tmp/diboo_render/final.mp4)
+
+          if [ "$FILE_SIZE" -le 0 ]; then
+
+            echo ""
+            echo "ERROR: final.mp4 is empty."
+
+            exit 1
+
+          fi
 
           echo ""
-          echo "Running FFprobe verification..."
+          echo "FINAL MP4:"
+          ls -lh \
+            /tmp/diboo_render/final.mp4
+
+          echo ""
+          echo "FFprobe information:"
 
           ffprobe \
             -v error \
-            -select_streams v:0 \
-            -show_entries stream=codec_name,width,height,r_frame_rate,nb_frames \
-            -show_entries format=duration,size \
+            -show_entries \
+            format=duration,size \
+            -show_entries \
+            stream=codec_name,width,height,r_frame_rate \
             -of default=noprint_wrappers=1 \
-            /tmp/diboo_story.mp4
-
-          WIDTH=$(ffprobe \
-            -v error \
-            -select_streams v:0 \
-            -show_entries stream=width \
-            -of csv=p=0 \
-            /tmp/diboo_story.mp4)
-
-          HEIGHT=$(ffprobe \
-            -v error \
-            -select_streams v:0 \
-            -show_entries stream=height \
-            -of csv=p=0 \
-            /tmp/diboo_story.mp4)
-
-          FPS=$(ffprobe \
-            -v error \
-            -select_streams v:0 \
-            -show_entries stream=r_frame_rate \
-            -of csv=p=0 \
-            /tmp/diboo_story.mp4)
-
-          DURATION=$(ffprobe \
-            -v error \
-            -show_entries format=duration \
-            -of csv=p=0 \
-            /tmp/diboo_story.mp4)
-
-          echo ""
-          echo "VIDEO WIDTH:"
-          echo "$WIDTH"
-
-          echo ""
-          echo "VIDEO HEIGHT:"
-          echo "$HEIGHT"
-
-          echo ""
-          echo "VIDEO FPS:"
-          echo "$FPS"
-
-          echo ""
-          echo "VIDEO DURATION:"
-          echo "$DURATION"
-
-          if [ "$WIDTH" -ne 1080 ]; then
-            echo ""
-            echo "ERROR: MP4 width is not 1080."
-            exit 1
-          fi
-
-          if [ "$HEIGHT" -ne 1920 ]; then
-            echo ""
-            echo "ERROR: MP4 height is not 1920."
-            exit 1
-          fi
-
-          if [ "$FPS" != "24/1" ]; then
-            echo ""
-            echo "ERROR: MP4 FPS is not 24."
-            exit 1
-          fi
+            /tmp/diboo_render/final.mp4
 
           echo ""
           echo "================================"
@@ -1252,7 +1115,20 @@ jobs:
 
 
       # ============================================================
-      # 13. COMPLETE TEST
+      # 13. UPLOAD FINAL MP4
+      # ============================================================
+
+      - name: Upload final Project_Diboo MP4
+        uses: actions/upload-artifact@v4
+        with:
+          name: Project_Diboo_Final_MP4
+          path: /tmp/diboo_render/final.mp4
+          if-no-files-found: error
+          retention-days: 7
+
+
+      # ============================================================
+      # 14. COMPLETE PROJECT_DIBOO TEST
       # ============================================================
 
       - name: Complete Project_Diboo test
@@ -1277,8 +1153,36 @@ jobs:
           echo "FFmpeg preparation: PASSED"
           echo "Final MP4 encoding: PASSED"
           echo "Final MP4 verification: PASSED"
+          echo "Final MP4 artifact upload: PASSED"
 
           echo ""
           echo "PROJECT_DIBOO TEST PIPELINE: PASSED"
 
+          echo "================================"
+
+
+      # ============================================================
+      # 15. COMPLETE JOB
+      # ============================================================
+
+      - name: Complete job
+        run: |
+          set -e
+
+          echo ""
+          echo "================================"
+          echo "PROJECT_DIBOO"
+          echo "COMPLETE JOB"
+          echo "================================"
+
+          echo ""
+          echo "FINAL MP4:"
+          echo "/tmp/diboo_render/final.mp4"
+
+          echo ""
+          echo "GITHUB ARTIFACT:"
+          echo "Project_Diboo_Final_MP4"
+
+          echo ""
+          echo "PROJECT_DIBOO: COMPLETE"
           echo "================================"
