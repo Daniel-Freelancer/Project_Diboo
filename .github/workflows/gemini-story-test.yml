@@ -646,7 +646,7 @@ jobs:
           - never access material node inputs by numeric index
           - use named node sockets only
           - color sockets must receive RGBA tuples
-          - float sockets must receive floats
+          - float sockets must be floats
           - create a camera
           - set scene.camera = camera
           - create at least one light
@@ -792,58 +792,78 @@ jobs:
           echo "DIBOO FAST BLENDER RENDER CONFIGURATION"
           echo "================================"
 
+          cat > blender_scene/configure_render.py <<'PY'
+          import bpy
+          import os
+
+          scene = bpy.context.scene
+
+          scene.render.engine = 'BLENDER_EEVEE'
+
+          scene.render.resolution_x = 1080
+          scene.render.resolution_y = 1920
+          scene.render.resolution_percentage = 100
+
+          scene.render.fps = 24
+
+          scene.frame_start = 1
+          scene.frame_end = 1200
+
+          scene.render.image_settings.file_format = 'PNG'
+
+          if hasattr(scene, 'eevee'):
+              try:
+                  scene.eevee.taa_render_samples = 8
+              except Exception:
+                  pass
+
+          output_path = '/tmp/diboo_story_scene.blend'
+
+          bpy.ops.wm.save_as_mainfile(
+              filepath=output_path
+          )
+
+          if not os.path.exists(output_path):
+              raise RuntimeError(
+                  'ERROR: Blender scene was not saved.'
+              )
+
+          print('================================')
+          print('DIBOO FAST RENDER CONFIGURATION READY')
+          print('================================')
+          print('Render engine:')
+          print(scene.render.engine)
+          print('EEVEE samples:')
+          print(8)
+          print('Resolution:')
+          print('1080x1920')
+          print('FPS:')
+          print(scene.render.fps)
+          print('================================')
+          print('DIBOO FORCED RENDER RANGE')
+          print('================================')
+          print('FRAME START:')
+          print(scene.frame_start)
+          print('FRAME END:')
+          print(scene.frame_end)
+          print('TOTAL EXPECTED FRAMES:')
+          print(scene.frame_end - scene.frame_start + 1)
+          print('================================')
+          print('DIBOO BLENDER SCENE SAVED')
+          print('================================')
+          print(output_path)
+          PY
+
           blender \
             -b \
             /tmp/diboo_story_scene.blend \
-            --python-expr "
-import bpy
+            --python blender_scene/configure_render.py
 
-scene = bpy.context.scene
+          test -s /tmp/diboo_story_scene.blend
 
-scene.render.engine = 'BLENDER_EEVEE'
-
-scene.render.resolution_x = 1080
-scene.render.resolution_y = 1920
-scene.render.resolution_percentage = 100
-
-scene.render.fps = 24
-
-scene.frame_start = 1
-scene.frame_end = 1200
-
-scene.render.image_settings.file_format = 'PNG'
-
-if hasattr(scene, 'eevee'):
-    try:
-        scene.eevee.taa_render_samples = 8
-    except Exception:
-        pass
-
-bpy.ops.wm.save_as_mainfile(
-    filepath='/tmp/diboo_story_scene.blend'
-)
-
-print('================================')
-print('DIBOO FAST RENDER CONFIGURATION READY')
-print('================================')
-print('Render engine:')
-print(scene.render.engine)
-print('EEVEE samples:')
-print(8)
-print('Resolution:')
-print('1080x1920')
-print('FPS:')
-print(scene.render.fps)
-print('================================')
-print('DIBOO FORCED RENDER RANGE')
-print('================================')
-print('FRAME START:')
-print(scene.frame_start)
-print('FRAME END:')
-print(scene.frame_end)
-print('TOTAL EXPECTED FRAMES:')
-print(scene.frame_end - scene.frame_start + 1)
-"
+          echo ""
+          echo "DIBOO CONFIGURED BLENDER FILE:"
+          ls -lh /tmp/diboo_story_scene.blend
 
 
       # ============================================================
