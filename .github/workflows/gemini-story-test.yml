@@ -29,7 +29,7 @@ jobs:
           cat > request.json <<'JSON'
           {
             "model": "gemini-3.5-flash-lite",
-            "input": "You are the story and Blender procedural generation engine for Project_Diboo. Generate BOTH a structured story and a complete Blender Python script in ONE response. The story is for an original 3D cartoon YouTube Short. It must be highly visual and understandable without audio. Use simple objects, animals, vehicles, machines, or simple characters. Do not copy copyrighted characters, franchises, companies, or protected visual styles. Target approximately 50 seconds and remain between 40 and 60 seconds. Narration language must be English. Story structure: HOOK 0-5 seconds, SITUATION 5-12 seconds, PROBLEM 12-25 seconds, ACTION 25-40 seconds, RESOLUTION 40-50 seconds, PAYOFF 50-55 seconds. Create strong visual storytelling, clear cause and effect, dynamic camera movements, and SFX suggestions. Return ONLY valid JSON with exactly these top-level fields: story and blender_script. The story object MUST contain exactly: title, duration_target, language, hook, narration, scenes. duration_target MUST be a plain integer. language MUST be en. Every scene MUST contain: duration, description, camera, action, sfx. Scene duration MUST be a plain integer. The blender_script field MUST contain a complete standalone Python script for Blender 4.0.2. The Blender script must use bpy and generate the scene procedurally. It must create the environment, ground, story objects, simple characters when needed, materials, camera, lighting, and animation. Do not require external assets, addons, downloads, or external files. Use only valid Blender 4.0.2 bpy operators and APIs. Use simple primitives such as cubes, spheres, cylinders, cones and planes. For planes ALWAYS use bpy.ops.mesh.primitive_plane_add. NEVER use bpy.ops.mesh.create_plane. NEVER access Blender material node inputs by numeric socket indexes such as inputs[21], inputs[20], inputs[0], etc. When using Principled BSDF materials, access sockets by their NAME using node.inputs.get('Base Color'), node.inputs.get('Roughness'), node.inputs.get('Metallic'), node.inputs.get('Specular IOR Level'), node.inputs.get('Alpha'), or similar named sockets, and only assign a value when the socket exists. Color sockets require a 4-value RGBA tuple. Float sockets require a single float. Do not assign a float to a color socket and do not assign a tuple to a float socket. Prefer simple material creation with diffuse_color when possible to reduce compatibility problems. The script MUST create the camera before animation and set scene.camera = camera. Before saving, verify scene.camera is not None and raise an error if it is missing. Create at least one light. Use exactly scene.render.engine = 'BLENDER_EEVEE'. Do NOT use BLENDER_EEVEE_NEXT. Configure vertical video at 1080x1920, resolution percentage 100, and 24 FPS. Convert the story duration to frames and set scene.frame_start = 1 and scene.frame_end accordingly. Prefer reliability and fast rendering over visual complexity. Avoid unsupported Blender APIs and experimental features. The script must save the Blender file to /tmp/diboo_story_scene.blend. At the end print DIBOO BLENDER SCENE CREATED, STORY TITLE, TOTAL FRAMES, FPS, RESOLUTION and BLENDER SCENE READY. Return ONLY the JSON object. No Markdown. No code fences. No explanations."
+            "input": "You are the story and Blender procedural generation engine for Project_Diboo. Generate BOTH a structured story and a complete Blender Python script in ONE response. The story is for an original 3D cartoon YouTube Short. It must be highly visual and understandable without audio. Use simple objects, animals, vehicles, machines, or simple characters. Do not copy copyrighted characters, franchises, companies, or protected visual styles. Target approximately 50 seconds and remain between 40 and 60 seconds. Narration language must be English. Story structure: HOOK 0-5 seconds, SITUATION 5-12 seconds, PROBLEM 12-25 seconds, ACTION 25-40 seconds, RESOLUTION 40-50 seconds, PAYOFF 50-55 seconds. Create strong visual storytelling, clear cause and effect, dynamic camera movements, and SFX suggestions. Return ONLY valid JSON with exactly these top-level fields: story and blender_script. The story object MUST contain exactly: title, duration_target, language, hook, narration, scenes. duration_target MUST be a plain integer. language MUST be en. Every scene MUST contain: duration, description, camera, action, sfx. Scene duration MUST be a plain integer. The blender_script field MUST contain a complete standalone Python script for Blender 4.0.2. The Blender script must use bpy and generate the scene procedurally. It must create the environment, ground, story objects, simple characters when needed, materials, camera, lighting, and animation. Do not require external assets, addons, downloads, or external files. Use only valid Blender 4.0.2 bpy operators and APIs. Use simple primitives such as cubes, spheres, cylinders, cones and planes. For planes ALWAYS use bpy.ops.mesh.primitive_plane_add. NEVER use bpy.ops.mesh.create_plane. NEVER access Blender material node inputs by numeric socket indexes such as inputs[21], inputs[20], inputs[0], etc. When using Principled BSDF materials, access sockets by NAME using node.inputs.get('Base Color'), node.inputs.get('Roughness'), node.inputs.get('Metallic'), node.inputs.get('Specular IOR Level'), node.inputs.get('Alpha'), or similar named sockets, and only assign a value when the socket exists. Color sockets require a 4-value RGBA tuple. Float sockets require a single float. Do not assign a float to a color socket and do not assign a tuple to a float socket. Prefer simple material creation with diffuse_color when possible to reduce compatibility problems. The script MUST create the camera before animation and set scene.camera = camera. Before saving, verify scene.camera is not None and raise an error if it is missing. Create at least one light. Use exactly scene.render.engine = 'BLENDER_EEVEE'. Do NOT use BLENDER_EEVEE_NEXT. Configure vertical video at 1080x1920, resolution percentage 100, and 24 FPS. Convert the story duration to frames and set scene.frame_start = 1 and scene.frame_end accordingly. Prefer reliability and fast rendering over visual complexity. Avoid unsupported Blender APIs and experimental features. The script must save the Blender file to /tmp/diboo_story_scene.blend. At the end print DIBOO BLENDER SCENE CREATED, STORY TITLE, TOTAL FRAMES, FPS, RESOLUTION and BLENDER SCENE READY. Return ONLY the JSON object. No Markdown. No code fences. No explanations."
           }
           JSON
 
@@ -641,13 +641,17 @@ jobs:
           echo ""
           echo "Starting complete Blender animation render..."
 
+          echo ""
+          echo "IMPORTANT:"
+          echo "Blender will use the frame_start and frame_end"
+          echo "stored inside /tmp/diboo_story_scene.blend."
+          echo "No artificial frame limit is being applied."
+
           blender \
             -b \
             /tmp/diboo_story_scene.blend \
             -o /tmp/diboo_render/frame_ \
             -F PNG \
-            -s 1 \
-            -e 999999 \
             -a
 
           echo ""
@@ -682,26 +686,7 @@ jobs:
           fi
 
           echo ""
-          echo "FIRST 3 FRAMES:"
-
-          find \
-            /tmp/diboo_render \
-            -maxdepth 1 \
-            -type f \
-            -name "*.png" \
-            | sort \
-            | head -n 3
-
-          echo ""
-          echo "LAST 3 FRAMES:"
-
-          find \
-            /tmp/diboo_render \
-            -maxdepth 1 \
-            -type f \
-            -name "*.png" \
-            | sort \
-            | tail -n 3
+          echo "Render produced PNG frames successfully."
 
           echo ""
           echo "================================"
@@ -750,27 +735,29 @@ jobs:
 
           fi
 
-          echo ""
-          echo "FIRST FRAME:"
-
-          find \
+          FIRST_FRAME=$(find \
             /tmp/diboo_render \
             -maxdepth 1 \
             -type f \
             -name "*.png" \
             | sort \
-            | head -n 1
+            | sed -n '1p')
+
+          LAST_FRAME=$(find \
+            /tmp/diboo_render \
+            -maxdepth 1 \
+            -type f \
+            -name "*.png" \
+            | sort \
+            | tail -n 1)
+
+          echo ""
+          echo "FIRST FRAME:"
+          echo "$FIRST_FRAME"
 
           echo ""
           echo "LAST FRAME:"
-
-          find \
-            /tmp/diboo_render \
-            -maxdepth 1 \
-            -type f \
-            -name "*.png" \
-            | sort \
-            | tail -n 1
+          echo "$LAST_FRAME"
 
           echo ""
           echo "TOTAL RENDER SIZE:"
