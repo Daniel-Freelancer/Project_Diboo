@@ -239,10 +239,6 @@ jobs:
                   "Story language must be English (en)."
               )
 
-          # ------------------------------------------------------------
-          # NORMALIZE DURATION
-          # ------------------------------------------------------------
-
           raw_duration = story["duration_target"]
 
           if isinstance(raw_duration, bool):
@@ -297,10 +293,6 @@ jobs:
                   f"Invalid duration: {duration}. "
                   "Must be between 40 and 60 seconds."
               )
-
-          # ------------------------------------------------------------
-          # VALIDATE SCENES
-          # ------------------------------------------------------------
 
           scenes = story["scenes"]
 
@@ -395,10 +387,6 @@ jobs:
                       f"Scene {index} duration must be numeric."
                   )
 
-          # ------------------------------------------------------------
-          # SAVE NORMALIZED STORY
-          # ------------------------------------------------------------
-
           with open(
               "story.json",
               "w",
@@ -452,18 +440,21 @@ jobs:
 
 
       # ============================================================
-      # 4. CREATE BLENDER TEST SCENE FROM STORY.JSON
+      # 4. GENERATE BLENDER PYTHON SCRIPT WITH GEMINI
       # ============================================================
 
-      - name: Generate Blender scene from story
+      - name: Generate Blender Python script
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           set -e
 
           echo "================================"
-          echo "DIBOO BLENDER SCENE GENERATOR"
+          echo "PROJECT_DIBOO"
+          echo "GEMINI BLENDER SCRIPT GENERATOR"
           echo "================================"
 
-          mkdir -p blender_test
+          mkdir -p blender_scene
 
           python3 - <<'PY'
           import json
@@ -476,187 +467,334 @@ jobs:
           ) as f:
               story = json.load(f)
 
-          title = story["title"]
-          scenes = story["scenes"]
+          prompt = r"""
+          You are the procedural Blender scene generator for Project_Diboo.
 
-          print("")
-          print("Story:")
-          print(title)
+          Convert the supplied story.json into ONE complete Python script
+          that can be executed by Blender 4.0.2 in background mode.
 
-          print("")
-          print("Scenes:")
-          print(len(scenes))
+          IMPORTANT OUTPUT RULES:
 
-          blender_script = r'''
-          import bpy
-          import math
+          - Return ONLY Python code.
+          - Do NOT return Markdown.
+          - Do NOT use ```python.
+          - Do NOT explain anything.
+          - The result must be a complete standalone Blender Python script.
+          - Use bpy.
+          - Do not require external Blender addons.
+          - Do not require external assets.
+          - Everything must be generated procedurally.
+          - Do not download anything.
+          - Do not use external files.
 
-          bpy.ops.object.select_all(
-              action='SELECT'
-          )
+          BLENDER VERSION:
 
-          bpy.ops.object.delete(
-              use_global=False
-          )
+          Blender 4.0.2
 
-          world = bpy.context.scene.world
+          RENDER ENGINE:
 
-          if world is None:
-              world = bpy.data.worlds.new("World")
-              bpy.context.scene.world = world
-
-          world.use_nodes = True
-
-          background = world.node_tree.nodes.get(
-              "Background"
-          )
-
-          if background:
-
-              background.inputs["Color"].default_value = (
-                  0.04,
-                  0.06,
-                  0.10,
-                  1.0
-              )
-
-              background.inputs["Strength"].default_value = 0.4
-
-          bpy.ops.mesh.primitive_plane_add(
-              size=20,
-              location=(0, 0, 0)
-          )
-
-          ground = bpy.context.object
-          ground.name = "DIBOO_Ground"
-
-          ground_mat = bpy.data.materials.new(
-              "DIBOO_Ground_Material"
-          )
-
-          ground_mat.diffuse_color = (
-              0.08,
-              0.45,
-              0.12,
-              1.0
-          )
-
-          ground.data.materials.append(
-              ground_mat
-          )
-
-          bpy.ops.mesh.primitive_uv_sphere_add(
-              segments=32,
-              ring_count=16,
-              radius=1.0,
-              location=(0, 0, 1)
-          )
-
-          sphere = bpy.context.object
-          sphere.name = "DIBOO_Main_Object"
-
-          sphere_mat = bpy.data.materials.new(
-              "DIBOO_Main_Object_Material"
-          )
-
-          sphere_mat.diffuse_color = (
-              1.0,
-              0.25,
-              0.05,
-              1.0
-          )
-
-          sphere.data.materials.append(
-              sphere_mat
-          )
-
-          bpy.ops.object.camera_add(
-              location=(0, -10, 5),
-              rotation=(
-                  math.radians(72),
-                  0,
-                  0
-              )
-          )
-
-          camera = bpy.context.object
-          camera.name = "DIBOO_Camera"
-
-          bpy.context.scene.camera = camera
-
-          camera.data.lens = 50
-
-          bpy.ops.object.light_add(
-              type='AREA',
-              location=(4, -4, 8)
-          )
-
-          light = bpy.context.object
-          light.name = "DIBOO_Key_Light"
-
-          light.data.energy = 1200
-          light.data.shape = 'DISK'
-          light.data.size = 5
-
-          scene = bpy.context.scene
+          Use exactly:
 
           scene.render.engine = 'BLENDER_EEVEE'
 
-          scene.render.resolution_x = 540
-          scene.render.resolution_y = 960
-          scene.render.resolution_percentage = 100
+          Do NOT use BLENDER_EEVEE_NEXT.
 
-          scene.render.image_settings.file_format = 'PNG'
+          SCENE:
 
-          scene.render.filepath = "/tmp/diboo_story_test_"
+          Create a simple but visually clear 3D cartoon scene based on
+          the story.
 
-          scene.render.film_transparent = False
+          The script must create:
+
+          - environment
+          - ground
+          - required story objects
+          - simple procedural characters if needed
+          - materials
+          - camera
+          - lighting
+          - animation
+
+          CAMERA:
+
+          The final composition must be vertical.
+
+          Use:
+
+          resolution_x = 1080
+          resolution_y = 1920
+          resolution_percentage = 100
+
+          FPS:
+
+          24
+
+          ANIMATION:
+
+          The story duration is supplied in story.json.
+
+          Convert the duration into frames using 24 FPS.
+
+          Set:
 
           scene.frame_start = 1
-          scene.frame_end = 1
-          scene.frame_set(1)
+          scene.frame_end = <calculated final frame>
 
-          bpy.ops.wm.save_as_mainfile(
-              filepath="/tmp/diboo_story_test.blend"
+          Use Blender keyframes for animation.
+
+          ROBUSTNESS:
+
+          - Always create an active camera.
+          - Always create at least one light.
+          - Always create geometry.
+          - Avoid simulations.
+          - Avoid physics.
+          - Avoid external dependencies.
+          - Avoid UI-only bpy operators.
+          - The script must work with:
+
+            blender -b --python blender_scene.py
+
+          Start by clearing the default scene.
+
+          Use simple primitives such as:
+
+          cubes
+          spheres
+          cylinders
+          cones
+          planes
+
+          Prefer reliability and fast rendering over visual complexity.
+
+          The script must save the resulting Blender file to:
+
+          /tmp/diboo_story_scene.blend
+
+          At the end print:
+
+          DIBOO BLENDER SCENE CREATED
+
+          STORY TITLE: <story title>
+
+          TOTAL FRAMES: <number>
+
+          FPS: 24
+
+          RESOLUTION: 1080x1920
+
+          BLENDER SCENE READY
+
+          STORY JSON:
+          """
+
+          full_prompt = (
+              prompt
+              + "\n"
+              + json.dumps(
+                  story,
+                  indent=2,
+                  ensure_ascii=False
+              )
           )
 
-          print("================================")
-          print("DIBOO BLENDER SCENE CREATED")
-          print("================================")
-
-          print("Objects:")
-
-          for obj in bpy.context.scene.objects:
-              print("-", obj.name)
-
-          print("Resolution:")
-
-          print(
-              scene.render.resolution_x,
-              "x",
-              scene.render.resolution_y
-          )
-
-          print("================================")
-          '''
+          request = {
+              "model": "gemini-3.7-flash",
+              "input": full_prompt
+          }
 
           Path(
-              "blender_test/story_scene.py"
+              "blender_scene/request.json"
           ).write_text(
-              blender_script,
+              json.dumps(
+                  request,
+                  ensure_ascii=False
+              ),
               encoding="utf-8"
           )
 
           print("")
-          print("Blender Python script created:")
+          print("===== BLENDER SCRIPT REQUEST CREATED =====")
+          print("")
+          print("Story:")
+          print(story["title"])
+          print("")
+          print("Scenes:")
+          print(len(story["scenes"]))
+          PY
+
+          SUCCESS=false
+
+          for ATTEMPT in 1 2 3 4 5
+          do
+
+            echo ""
+            echo "===== BLENDER SCRIPT GEMINI ATTEMPT $ATTEMPT / 5 ====="
+
+            RESPONSE=$(curl -s \
+              -H "x-goog-api-key: $GEMINI_API_KEY" \
+              -H "Content-Type: application/json" \
+              -X POST \
+              "https://generativelanguage.googleapis.com/v1beta/interactions" \
+              -d @blender_scene/request.json)
+
+            echo "$RESPONSE" \
+              > blender_scene/gemini_response.json
+
+            echo ""
+            echo "===== GEMINI RESPONSE ====="
+            cat blender_scene/gemini_response.json
+
+            if echo "$RESPONSE" | grep -q '"error"'; then
+
+              if echo "$RESPONSE" | grep -qE \
+                '"code": ?503|"status": ?"UNAVAILABLE"|service_unavailable'; then
+
+                echo ""
+                echo "Gemini is temporarily unavailable."
+                echo "Waiting 20 seconds before retry..."
+
+                sleep 20
+                continue
+              fi
+
+              echo ""
+              echo "===== GEMINI BLENDER SCRIPT API ERROR ====="
+              exit 1
+            fi
+
+            SUCCESS=true
+            break
+
+          done
+
+          if [ "$SUCCESS" != "true" ]; then
+
+            echo ""
+            echo "===== GEMINI BLENDER SCRIPT FAILED AFTER 5 ATTEMPTS ====="
+            exit 1
+
+          fi
+
+          echo ""
+          echo "===== EXTRACTING BLENDER SCRIPT ====="
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          with open(
+              "blender_scene/gemini_response.json",
+              "r",
+              encoding="utf-8"
+          ) as f:
+              response = json.load(f)
+
+          script_text = None
+
+          for step in response.get("steps", []):
+
+              if step.get("type") != "model_output":
+                  continue
+
+              for content in step.get("content", []):
+
+                  if content.get("type") == "text":
+
+                      text = content.get(
+                          "text",
+                          ""
+                      ).strip()
+
+                      if text:
+
+                          script_text = text
+                          break
+
+              if script_text:
+                  break
+
+          if not script_text:
+
+              print("")
+              print("===== GEMINI RESPONSE STRUCTURE =====")
+
+              print(
+                  json.dumps(
+                      response,
+                      indent=2,
+                      ensure_ascii=False
+                  )
+              )
+
+              raise RuntimeError(
+                  "Gemini response did not contain Blender script output."
+              )
+
+          if script_text.startswith("```python"):
+
+              script_text = script_text[
+                  len("```python"):
+              ]
+
+          elif script_text.startswith("```"):
+
+              script_text = script_text[3:]
+
+          if script_text.rstrip().endswith("```"):
+
+              script_text = (
+                  script_text.rstrip()[:-3]
+              )
+
+          script_text = script_text.strip()
+
+          if not script_text:
+
+              raise RuntimeError(
+                  "Generated Blender script is empty."
+              )
+
+          output = Path(
+              "blender_scene/blender_scene.py"
+          )
+
+          output.write_text(
+              script_text,
+              encoding="utf-8"
+          )
+
+          print("")
+          print("================================")
+          print("BLENDER SCRIPT GENERATED")
+          print("================================")
+
+          print("")
+          print("File:")
+          print(output)
+
+          print("")
+          print("Size:")
           print(
-              "blender_test/story_scene.py"
+              output.stat().st_size,
+              "bytes"
           )
           PY
 
+          echo ""
+          echo "===== VALIDATING BLENDER PYTHON SYNTAX ====="
+
+          python3 -m py_compile \
+            blender_scene/blender_scene.py
+
+          echo ""
+          echo "================================"
+          echo "BLENDER SCRIPT VALIDATION: PASSED"
+          echo "================================"
+
 
       # ============================================================
-      # 5. RENDER ONE FRAME
+      # 5. RENDER ONE FRAME FROM GENERATED BLENDER SCRIPT
       # ============================================================
 
       - name: Render Blender story test
@@ -666,10 +804,6 @@ jobs:
           echo "================================"
           echo "DIBOO BLENDER RENDER TEST"
           echo "================================"
-
-          # ------------------------------------------------------------
-          # ENSURE BLENDER IS AVAILABLE
-          # ------------------------------------------------------------
 
           if command -v blender >/dev/null 2>&1; then
 
@@ -699,18 +833,14 @@ jobs:
 
           fi
 
-          # ------------------------------------------------------------
-          # RENDER
-          # ------------------------------------------------------------
-
           mkdir -p /tmp/diboo_render
 
           echo ""
-          echo "Starting Blender render..."
+          echo "Starting Blender with generated script..."
 
           blender \
             -b \
-            --python blender_test/story_scene.py \
+            --python blender_scene/blender_scene.py \
             -o /tmp/diboo_render/frame_ \
             -F PNG \
             -f 1
@@ -745,9 +875,12 @@ jobs:
           echo "$FILE_COUNT"
 
           if [ "$FILE_COUNT" -lt 1 ]; then
+
             echo ""
             echo "ERROR: Blender did not produce a PNG."
+
             exit 1
+
           fi
 
           echo ""
