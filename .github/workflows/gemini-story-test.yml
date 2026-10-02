@@ -652,9 +652,9 @@ jobs:
 
                 echo ""
                 echo "Gemini is temporarily unavailable."
-                echo "Waiting 20 seconds before retry..."
+                echo "Waiting 30 seconds before retry..."
 
-                sleep 20
+                sleep 30
                 continue
               fi
 
