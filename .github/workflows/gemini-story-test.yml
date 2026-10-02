@@ -25,11 +25,12 @@ jobs:
           echo "================================"
 
           mkdir -p blender_scene
+          mkdir -p logs
 
           cat > request.json <<'JSON'
           {
             "model": "gemini-3.5-flash-lite",
-            "input": "You are the story and Blender procedural generation engine for Project_Diboo. Generate BOTH a structured story and a complete Blender Python script in ONE response. The story is for an original 3D cartoon YouTube Short. It must be highly visual and understandable without audio. Use simple objects, animals, vehicles, machines, or simple characters. Do not copy copyrighted characters, franchises, companies, or protected visual styles. Target approximately 50 seconds and remain between 40 and 60 seconds. Narration language must be English. Story structure: HOOK 0-5 seconds, SITUATION 5-12 seconds, PROBLEM 12-25 seconds, ACTION 25-40 seconds, RESOLUTION 40-50 seconds, PAYOFF 50-55 seconds. Create strong visual storytelling, clear cause and effect, dynamic camera movements, and SFX suggestions. Return ONLY valid JSON with exactly these top-level fields: story and blender_script. The story object MUST contain exactly: title, duration_target, language, hook, narration, scenes. duration_target MUST be a plain integer. language MUST be en. Every scene MUST contain: duration, description, camera, action, sfx. Scene duration MUST be a plain integer. The blender_script field MUST contain a complete standalone Python script for Blender 4.0.2. The Blender script must use bpy and generate the scene procedurally. It must create the environment, ground, story objects, simple characters when needed, materials, camera, lighting, and animation. Do not require external assets, addons, downloads, or external files. Use only valid Blender 4.0.2 bpy operators and APIs. Use simple primitives such as cubes, spheres, cylinders, cones and planes. For planes ALWAYS use bpy.ops.mesh.primitive_plane_add. NEVER use bpy.ops.mesh.create_plane. NEVER access Blender material node inputs by numeric socket indexes such as inputs[21], inputs[20], inputs[0], etc. When using Principled BSDF materials, access sockets by NAME using node.inputs.get('Base Color'), node.inputs.get('Roughness'), node.inputs.get('Metallic'), node.inputs.get('Specular IOR Level'), node.inputs.get('Alpha'), or similar named sockets, and only assign a value when the socket exists. Color sockets require a 4-value RGBA tuple. Float sockets require a single float. Do not assign a float to a color socket and do not assign a tuple to a float socket. Prefer simple material creation with diffuse_color when possible to reduce compatibility problems. The script MUST create the camera before animation and set scene.camera = camera. Before saving, verify scene.camera is not None and raise an error if it is missing. Create at least one light. Use exactly scene.render.engine = 'BLENDER_EEVEE'. Do NOT use BLENDER_EEVEE_NEXT. Configure vertical video at 1080x1920, resolution percentage 100, and 24 FPS. Convert the story duration to frames and set scene.frame_start = 1 and scene.frame_end accordingly. Prefer reliability and fast rendering over visual complexity. Avoid unsupported Blender APIs and experimental features. The script must save the Blender file to /tmp/diboo_story_scene.blend. At the end print DIBOO BLENDER SCENE CREATED, STORY TITLE, TOTAL FRAMES, FPS, RESOLUTION and BLENDER SCENE READY. Return ONLY the JSON object. No Markdown. No code fences. No explanations."
+            "input": "You are the story and Blender procedural generation engine for Project_Diboo. Generate BOTH a structured story and a complete Blender Python script in ONE response. The story is for an original 3D cartoon YouTube Short. It must be highly visual and understandable without audio. Use simple objects, animals, vehicles, machines, or simple characters. Do not copy copyrighted characters, franchises, companies, or protected visual styles. Target approximately 50 seconds and remain between 40 and 60 seconds. Narration language must be English. Story structure: HOOK 0-5 seconds, SITUATION 5-12 seconds, PROBLEM 12-25 seconds, ACTION 25-40 seconds, RESOLUTION 40-50 seconds, PAYOFF 50-55 seconds. Create strong visual storytelling, clear cause and effect, dynamic camera movements, and SFX suggestions. Return ONLY valid JSON with exactly these top-level fields: story and blender_script. The story object MUST contain exactly: title, duration_target, language, hook, narration, scenes. duration_target MUST be a plain integer. language MUST be en. Every scene MUST contain: duration, description, camera, action, sfx. Scene duration MUST be a plain integer. The blender_script field MUST contain a complete standalone Python script for Blender 4.0.2. The script MUST be conservative, deterministic and reliable. It MUST NOT depend on external files, addons, downloads, textures, fonts, images, sounds or network access. It MUST run correctly in Blender 4.0.2 background mode using: blender -b --python blender_scene.py. The script MUST import bpy and math only unless another Python standard-library module is absolutely necessary. It MUST first clear the default scene using bpy.ops.object.select_all(action='SELECT') and bpy.ops.object.delete(use_global=False). Use only stable Blender 4.0.2 operators. For planes ALWAYS use bpy.ops.mesh.primitive_plane_add. NEVER use bpy.ops.mesh.create_plane. Use cubes, spheres, cylinders, cones and planes only. Create materials using bpy.data.materials.new and diffuse_color whenever possible. If using nodes, NEVER access Principled BSDF inputs by numeric indexes. NEVER use inputs[21], inputs[20], inputs[0] or any numeric socket index. Access sockets only by name using node.inputs.get('Base Color'), node.inputs.get('Roughness'), node.inputs.get('Metallic'), node.inputs.get('Specular IOR Level'), node.inputs.get('Alpha'), etc. Color values MUST be 4-value RGBA tuples. Float values MUST be single floats. Create the camera BEFORE creating animation. Set scene.camera = camera. Create at least one light. Use scene.render.engine = 'BLENDER_EEVEE' exactly. NEVER use BLENDER_EEVEE_NEXT. Configure scene.render.resolution_x = 1080, scene.render.resolution_y = 1920, scene.render.resolution_percentage = 100 and scene.render.fps = 24. Convert duration_target to frames. Set scene.frame_start = 1 and scene.frame_end = duration_target * scene.render.fps. Keep geometry and lighting simple for fast EEVEE rendering. Avoid simulations, particle systems, geometry nodes, compositing, volumetrics, cloth, smoke, fire, rigid body simulations and expensive modifiers. Prefer simple keyframe animation. Every animated object must already exist before keyframes are inserted. Before saving, verify that scene.camera is not None. The script MUST save the Blender scene using bpy.ops.wm.save_as_mainfile(filepath='/tmp/diboo_story_scene.blend'). After saving, verify that the file exists using Python standard library os.path.exists. If the file does not exist, raise RuntimeError. At the end print exactly these diagnostic messages: DIBOO BLENDER SCENE CREATED, STORY TITLE, TOTAL FRAMES, FPS, RESOLUTION, BLENDER SCENE READY. The script must not render anything itself. Return ONLY the JSON object. No Markdown. No code fences. No explanations."
           }
           JSON
 
@@ -40,7 +41,8 @@ jobs:
             echo ""
             echo "===== GEMINI 3.5 FLASH-LITE ATTEMPT $ATTEMPT / 5 ====="
 
-            RESPONSE=$(curl -s \
+            RESPONSE=$(curl -sS \
+              --fail-with-body \
               -H "x-goog-api-key: $GEMINI_API_KEY" \
               -H "Content-Type: application/json" \
               -X POST \
@@ -57,7 +59,7 @@ jobs:
 
               if echo "$RESPONSE" | grep -qE '"code": ?503|"status": ?"UNAVAILABLE"|service_unavailable'; then
                 echo ""
-                echo "Gemini 3.5 Flash-Lite temporarily unavailable."
+                echo "Gemini temporarily unavailable."
                 echo "Waiting 20 seconds before retry..."
                 sleep 20
                 continue
@@ -65,7 +67,7 @@ jobs:
 
               if echo "$RESPONSE" | grep -qE '"code": ?429|too_many_requests|Rate limit exceeded'; then
                 echo ""
-                echo "Gemini 3.5 Flash-Lite rate limit reached."
+                echo "Gemini rate limit reached."
                 echo "Waiting 60 seconds before retry..."
                 sleep 60
                 continue
@@ -82,12 +84,12 @@ jobs:
 
           if [ "$SUCCESS" != "true" ]; then
             echo ""
-            echo "===== GEMINI 3.5 FLASH-LITE FAILED AFTER 5 ATTEMPTS ====="
+            echo "===== GEMINI FAILED AFTER 5 ATTEMPTS ====="
             exit 1
           fi
 
           echo ""
-          echo "===== GEMINI 3.5 FLASH-LITE RESPONSE RECEIVED ====="
+          echo "===== GEMINI RESPONSE RECEIVED ====="
 
 
       # ============================================================
@@ -138,20 +140,8 @@ jobs:
                   break
 
           if not output_text:
-
-              print("")
-              print("===== GEMINI RESPONSE STRUCTURE =====")
-
-              print(
-                  json.dumps(
-                      response,
-                      indent=2,
-                      ensure_ascii=False
-                  )
-              )
-
               raise RuntimeError(
-                  "Gemini response did not contain output text."
+                  "Gemini response did not contain model output text."
               )
 
           if output_text.startswith("```json"):
@@ -191,10 +181,7 @@ jobs:
           story = generated["story"]
           blender_script = generated["blender_script"]
 
-          if not isinstance(
-              blender_script,
-              str
-          ):
+          if not isinstance(blender_script, str):
               raise RuntimeError(
                   "blender_script must be a string."
               )
@@ -202,17 +189,13 @@ jobs:
           blender_script = blender_script.strip()
 
           if blender_script.startswith("```python"):
-              blender_script = blender_script[
-                  len("```python"):
-              ]
+              blender_script = blender_script[len("```python"):]
 
           elif blender_script.startswith("```"):
               blender_script = blender_script[3:]
 
           if blender_script.rstrip().endswith("```"):
-              blender_script = (
-                  blender_script.rstrip()[:-3]
-              )
+              blender_script = blender_script.rstrip()[:-3]
 
           blender_script = blender_script.strip()
 
@@ -254,6 +237,7 @@ jobs:
 
           print("")
           print("===== BLENDER SCRIPT CREATED =====")
+
           print(
               "blender_scene/blender_scene.py"
           )
@@ -268,7 +252,7 @@ jobs:
 
 
       # ============================================================
-      # 3. VALIDATE PROJECT_DIBOO STORY
+      # 3. VALIDATE STORY
       # ============================================================
 
       - name: Validate Project_Diboo story
@@ -319,7 +303,7 @@ jobs:
                   "duration_target cannot be boolean."
               )
 
-          elif isinstance(raw_duration, int):
+          if isinstance(raw_duration, int):
               duration = raw_duration
 
           elif isinstance(raw_duration, float):
@@ -348,25 +332,14 @@ jobs:
 
           story["duration_target"] = duration
 
-          print("")
-          print("Normalized duration:")
-          print(
-              duration,
-              "seconds"
-          )
-
           if not 40 <= duration <= 60:
               raise RuntimeError(
-                  f"Invalid duration: {duration}. "
-                  "Must be between 40 and 60 seconds."
+                  f"Invalid duration: {duration}. Must be 40-60 seconds."
               )
 
           scenes = story["scenes"]
 
-          if not isinstance(
-              scenes,
-              list
-          ):
+          if not isinstance(scenes, list):
               raise RuntimeError(
                   "scenes must be a list."
               )
@@ -391,10 +364,7 @@ jobs:
               start=1
           ):
 
-              if not isinstance(
-                  scene,
-                  dict
-              ):
+              if not isinstance(scene, dict):
                   raise RuntimeError(
                       f"Scene {index} is not an object."
                   )
@@ -416,7 +386,7 @@ jobs:
                       f"Scene {index} duration cannot be boolean."
                   )
 
-              elif isinstance(
+              if isinstance(
                   raw_scene_duration,
                   str
               ):
@@ -439,11 +409,13 @@ jobs:
                   raw_scene_duration,
                   (int, float)
               ):
+
                   scene_duration = int(
                       raw_scene_duration
                   )
 
               else:
+
                   raise RuntimeError(
                       f"Scene {index} duration must be numeric."
                   )
@@ -454,7 +426,6 @@ jobs:
                   )
 
               scene["duration"] = scene_duration
-
               total_scene_duration += scene_duration
 
           with open(
@@ -471,43 +442,24 @@ jobs:
               )
 
           print("")
-          print("================================")
           print("DIBOO STORY VALIDATION: PASSED")
-          print("================================")
-
           print("")
           print("TITLE:")
           print(story["title"])
-
           print("")
           print("DURATION:")
-          print(
-              story["duration_target"],
-              "seconds"
-          )
-
-          print("")
-          print("LANGUAGE:")
-          print(story["language"])
-
+          print(duration, "seconds")
           print("")
           print("SCENES:")
           print(len(scenes))
-
           print("")
           print("TOTAL SCENE DURATION:")
-          print(
-              total_scene_duration,
-              "seconds"
-          )
-
-          print("")
-          print("story.json is valid.")
+          print(total_scene_duration, "seconds")
           PY
 
 
       # ============================================================
-      # 4. VALIDATE BLENDER PYTHON SCRIPT
+      # 4. VALIDATE BLENDER PYTHON SYNTAX
       # ============================================================
 
       - name: Validate Blender Python script
@@ -518,29 +470,21 @@ jobs:
           echo "DIBOO BLENDER SCRIPT VALIDATION"
           echo "================================"
 
-          test -s \
-            blender_scene/blender_scene.py
+          test -s blender_scene/blender_scene.py
 
           python3 -m py_compile \
             blender_scene/blender_scene.py
 
           echo ""
-          echo "Blender Python syntax:"
-          echo "PASSED"
+          echo "Blender Python syntax: PASSED"
 
           echo ""
           echo "Script:"
-          ls -lh \
-            blender_scene/blender_scene.py
-
-          echo ""
-          echo "================================"
-          echo "DIBOO BLENDER SCRIPT: PASSED"
-          echo "================================"
+          ls -lh blender_scene/blender_scene.py
 
 
       # ============================================================
-      # 5. INSTALL / DETECT BLENDER
+      # 5. PREPARE BLENDER
       # ============================================================
 
       - name: Prepare Blender
@@ -553,15 +497,9 @@ jobs:
 
           if command -v blender >/dev/null 2>&1; then
 
-            echo ""
-            echo "Blender already available:"
             blender --version
 
           else
-
-            echo ""
-            echo "Blender not found."
-            echo "Installing Blender..."
 
             sudo apt-get update
 
@@ -572,19 +510,18 @@ jobs:
               libgl1 \
               libglib2.0-0
 
-            echo ""
-            echo "Blender installation completed."
-
             blender --version
 
           fi
 
 
       # ============================================================
-      # 6. GENERATE BLENDER SCENE
+      # 6. BLENDER SCENE GENERATION WITH AUTO-RECOVERY
       # ============================================================
 
       - name: Generate Blender scene
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           set -e
 
@@ -592,33 +529,257 @@ jobs:
           echo "DIBOO BLENDER SCENE GENERATOR"
           echo "================================"
 
-          echo ""
-          echo "Running Blender scene generator..."
+          rm -f /tmp/diboo_story_scene.blend
+          rm -f blender_scene/blender_scene_error.log
 
-          blender \
-            -b \
-            --python blender_scene/blender_scene.py
+          MAX_REPAIRS=3
+          REPAIR=0
 
-          echo ""
-          echo "================================"
-          echo "DIBOO BLENDER SCENE GENERATION FINISHED"
-          echo "================================"
-
-          if [ ! -f /tmp/diboo_story_scene.blend ]; then
+          while true
+          do
 
             echo ""
-            echo "ERROR:"
-            echo "/tmp/diboo_story_scene.blend was not created."
+            echo "================================"
+            echo "BLENDER GENERATION ATTEMPT"
+            echo "$((REPAIR + 1))"
+            echo "================================"
 
-            exit 1
+            rm -f /tmp/diboo_story_scene.blend
 
-          fi
+            set +e
 
-          echo ""
-          echo "Blender file created successfully:"
+            blender \
+              -b \
+              --python blender_scene/blender_scene.py \
+              > blender_scene/blender_run.log 2>&1
 
-          ls -lh \
-            /tmp/diboo_story_scene.blend
+            BLENDER_EXIT=$?
+
+            set -e
+
+            echo ""
+            echo "BLENDER EXIT CODE:"
+            echo "$BLENDER_EXIT"
+
+            if [ "$BLENDER_EXIT" -eq 0 ] && \
+               [ -f /tmp/diboo_story_scene.blend ]; then
+
+              echo ""
+              echo "================================"
+              echo "DIBOO BLENDER SCENE READY"
+              echo "================================"
+
+              ls -lh \
+                /tmp/diboo_story_scene.blend
+
+              break
+
+            fi
+
+            echo ""
+            echo "================================"
+            echo "BLENDER SCENE GENERATION FAILED"
+            echo "================================"
+
+            echo ""
+            echo "===== LAST BLENDER OUTPUT ====="
+
+            tail -n 120 \
+              blender_scene/blender_run.log \
+              || true
+
+            cp \
+              blender_scene/blender_run.log \
+              blender_scene/blender_scene_error.log
+
+            if [ "$REPAIR" -ge "$MAX_REPAIRS" ]; then
+
+              echo ""
+              echo "Maximum Blender repair attempts reached."
+
+              exit 1
+
+            fi
+
+            REPAIR=$((REPAIR + 1))
+
+            echo ""
+            echo "Sending Blender error to Gemini for automatic repair..."
+            echo "Repair attempt: $REPAIR / $MAX_REPAIRS"
+
+            python3 - <<'PY'
+          import json
+
+          from pathlib import Path
+
+          script = Path(
+              "blender_scene/blender_scene.py"
+          ).read_text(
+              encoding="utf-8"
+          )
+
+          error = Path(
+              "blender_scene/blender_run.log"
+          ).read_text(
+              encoding="utf-8",
+              errors="replace"
+          )
+
+          if len(error) > 16000:
+              error = error[-16000:]
+
+          prompt = f"""
+          You are repairing a Blender 4.0.2 Python script for Project_Diboo.
+
+          The previous generated script failed during Blender background execution.
+
+          IMPORTANT:
+          Return ONLY the complete corrected Python script.
+          No Markdown.
+          No code fences.
+          No explanations.
+
+          The corrected script MUST:
+          - work in Blender 4.0.2 background mode
+          - import bpy
+          - use only stable bpy APIs
+          - never use bpy.ops.mesh.create_plane
+          - use bpy.ops.mesh.primitive_plane_add for planes
+          - never access material node inputs by numeric index
+          - use named node sockets only
+          - color sockets must receive RGBA tuples
+          - float sockets must receive floats
+          - create a camera
+          - set scene.camera = camera
+          - create at least one light
+          - use scene.render.engine = 'BLENDER_EEVEE'
+          - NEVER use BLENDER_EEVEE_NEXT
+          - configure 1080x1920
+          - configure 24 FPS
+          - preserve the existing story and animation concept
+          - keep geometry and materials simple
+          - avoid simulations and expensive effects
+          - save to /tmp/diboo_story_scene.blend
+          - verify the file exists after saving
+          - print DIBOO BLENDER SCENE CREATED
+          - print STORY TITLE
+          - print TOTAL FRAMES
+          - print FPS
+          - print RESOLUTION
+          - print BLENDER SCENE READY
+
+          PREVIOUS SCRIPT:
+
+          {script}
+
+          BLENDER ERROR:
+
+          {error}
+          """
+
+          request = {
+              "model": "gemini-3.5-flash-lite",
+              "input": prompt
+          }
+
+          Path(
+              "repair_request.json"
+          ).write_text(
+              json.dumps(
+                  request,
+                  ensure_ascii=False
+              ),
+              encoding="utf-8"
+          )
+          PY
+
+            REPAIR_RESPONSE=$(curl -sS \
+              -H "x-goog-api-key: $GEMINI_API_KEY" \
+              -H "Content-Type: application/json" \
+              -X POST \
+              "https://generativelanguage.googleapis.com/v1beta/interactions" \
+              -d @repair_request.json)
+
+            echo "$REPAIR_RESPONSE" \
+              > blender_scene/repair_response.json
+
+            python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          with open(
+              "blender_scene/repair_response.json",
+              "r",
+              encoding="utf-8"
+          ) as f:
+              response = json.load(f)
+
+          output_text = None
+
+          for step in response.get("steps", []):
+
+              if step.get("type") != "model_output":
+                  continue
+
+              for content in step.get("content", []):
+
+                  if content.get("type") == "text":
+
+                      text = content.get(
+                          "text",
+                          ""
+                      ).strip()
+
+                      if text:
+                          output_text = text
+                          break
+
+              if output_text:
+                  break
+
+          if not output_text:
+              raise RuntimeError(
+                  "Gemini repair response contained no script."
+              )
+
+          if output_text.startswith("```python"):
+              output_text = output_text[len("```python"):]
+
+          elif output_text.startswith("```"):
+              output_text = output_text[3:]
+
+          if output_text.rstrip().endswith("```"):
+              output_text = output_text.rstrip()[:-3]
+
+          output_text = output_text.strip()
+
+          if not output_text:
+              raise RuntimeError(
+                  "Gemini returned an empty repaired script."
+              )
+
+          Path(
+              "blender_scene/blender_scene.py"
+          ).write_text(
+              output_text,
+              encoding="utf-8"
+          )
+
+          print("")
+          print("===== GEMINI REPAIRED BLENDER SCRIPT RECEIVED =====")
+          print(
+              "Characters:",
+              len(output_text)
+          )
+          PY
+
+            python3 -m py_compile \
+              blender_scene/blender_scene.py
+
+            echo ""
+            echo "Repaired Blender script syntax: PASSED"
+
+          done
 
 
       # ============================================================
@@ -638,29 +799,19 @@ jobs:
           mkdir -p \
             /tmp/diboo_render
 
-          echo ""
-          echo "Starting complete Blender animation render..."
-
-          echo ""
-          echo "IMPORTANT:"
-          echo "Blender will use the frame_start and frame_end"
-          echo "stored inside /tmp/diboo_story_scene.blend."
-          echo "No artificial frame limit is being applied."
-
           blender \
             -b \
             /tmp/diboo_story_scene.blend \
             -o /tmp/diboo_render/frame_ \
             -F PNG \
+            -s 1 \
+            -e 999999 \
             -a
 
           echo ""
           echo "================================"
           echo "DIBOO FULL ANIMATION RENDER FINISHED"
           echo "================================"
-
-          echo ""
-          echo "TOTAL RENDER SIZE:"
 
           du -sh \
             /tmp/diboo_render
@@ -686,7 +837,26 @@ jobs:
           fi
 
           echo ""
-          echo "Render produced PNG frames successfully."
+          echo "FIRST 3 FRAMES:"
+
+          find \
+            /tmp/diboo_render \
+            -maxdepth 1 \
+            -type f \
+            -name "*.png" \
+            | sort \
+            | head -n 3 || true
+
+          echo ""
+          echo "LAST 3 FRAMES:"
+
+          find \
+            /tmp/diboo_render \
+            -maxdepth 1 \
+            -type f \
+            -name "*.png" \
+            | sort \
+            | tail -n 3 || true
 
           echo ""
           echo "================================"
@@ -706,14 +876,7 @@ jobs:
           echo "DIBOO COMPLETE RENDER VERIFICATION"
           echo "================================"
 
-          if [ ! -d /tmp/diboo_render ]; then
-
-            echo ""
-            echo "ERROR: Render directory does not exist."
-
-            exit 1
-
-          fi
+          test -d /tmp/diboo_render
 
           FRAME_COUNT=$(find \
             /tmp/diboo_render \
@@ -727,37 +890,32 @@ jobs:
           echo "$FRAME_COUNT"
 
           if [ "$FRAME_COUNT" -lt 1 ]; then
-
             echo ""
             echo "ERROR: No PNG frames found."
-
             exit 1
-
           fi
-
-          FIRST_FRAME=$(find \
-            /tmp/diboo_render \
-            -maxdepth 1 \
-            -type f \
-            -name "*.png" \
-            | sort \
-            | sed -n '1p')
-
-          LAST_FRAME=$(find \
-            /tmp/diboo_render \
-            -maxdepth 1 \
-            -type f \
-            -name "*.png" \
-            | sort \
-            | tail -n 1)
 
           echo ""
           echo "FIRST FRAME:"
-          echo "$FIRST_FRAME"
+
+          find \
+            /tmp/diboo_render \
+            -maxdepth 1 \
+            -type f \
+            -name "*.png" \
+            | sort \
+            | head -n 1 || true
 
           echo ""
           echo "LAST FRAME:"
-          echo "$LAST_FRAME"
+
+          find \
+            /tmp/diboo_render \
+            -maxdepth 1 \
+            -type f \
+            -name "*.png" \
+            | sort \
+            | tail -n 1 || true
 
           echo ""
           echo "TOTAL RENDER SIZE:"
