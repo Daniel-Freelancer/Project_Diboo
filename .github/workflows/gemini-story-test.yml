@@ -30,7 +30,7 @@ jobs:
           cat > request.json <<'JSON'
           {
             "model": "gemini-3.5-flash-lite",
-            "input": "You are the story and Blender procedural generation engine for Project_Diboo. Generate BOTH a structured story and a complete Blender Python script in ONE response. The story is for an original 3D cartoon YouTube Short. It must be highly visual and understandable without audio. Use simple objects, animals, vehicles, machines, or simple characters. Do not copy copyrighted characters, franchises, companies, or protected visual styles. Target approximately 50 seconds and remain between 40 and 60 seconds. Narration language must be English. Story structure: HOOK 0-5 seconds, SITUATION 5-12 seconds, PROBLEM 12-25 seconds, ACTION 25-40 seconds, RESOLUTION 40-50 seconds, PAYOFF 50-55 seconds. Create strong visual storytelling, clear cause and effect, dynamic camera movements, and SFX suggestions. Return ONLY valid JSON with exactly these top-level fields: story and blender_script. The story object MUST contain exactly: title, duration_target, language, hook, narration, scenes. duration_target MUST be a plain integer. language MUST be en. Every scene MUST contain: duration, description, camera, action, sfx. Scene duration MUST be a plain integer. The blender_script field MUST contain a complete standalone Python script for Blender 4.0.2. The script MUST be conservative, deterministic and reliable. It MUST NOT depend on external files, addons, downloads, textures, fonts, images, sounds or network access. It MUST run correctly in Blender 4.0.2 background mode using: blender -b --python blender_scene.py. The script MUST import bpy and math only unless another Python standard-library module is absolutely necessary. It MUST first clear the default scene using bpy.ops.object.select_all(action='SELECT') and bpy.ops.object.delete(use_global=False). Use only stable Blender 4.0.2 operators. For planes ALWAYS use bpy.ops.mesh.primitive_plane_add. NEVER use bpy.ops.mesh.create_plane. Use cubes, spheres, cylinders, cones and planes only. Create materials using bpy.data.materials.new and diffuse_color whenever possible. If using nodes, NEVER access Principled BSDF inputs by numeric indexes. NEVER use inputs[21], inputs[20], inputs[0] or any numeric socket index. Access sockets only by name using node.inputs.get('Base Color'), node.inputs.get('Roughness'), node.inputs.get('Metallic'), node.inputs.get('Specular IOR Level'), node.inputs.get('Alpha'), etc. Color values MUST be 4-value RGBA tuples. Float values MUST be single floats. Create the camera BEFORE creating animation. Set scene.camera = camera. Create at least one light. Use scene.render.engine = 'BLENDER_EEVEE' exactly. NEVER use BLENDER_EEVEE_NEXT. Configure scene.render.resolution_x = 1080, scene.render.resolution_y = 1920, scene.render.resolution_percentage = 100 and scene.render.fps = 24. Convert duration_target to frames. Set scene.frame_start = 1 and scene.frame_end = duration_target * scene.render.fps. Keep geometry and lighting simple for fast EEVEE rendering. Avoid simulations, particle systems, geometry nodes, compositing, volumetrics, cloth, smoke, fire, rigid body simulations and expensive modifiers. Prefer simple keyframe animation. Every animated object must already exist before keyframes are inserted. Before saving, verify that scene.camera is not None. The script MUST save the Blender scene using bpy.ops.wm.save_as_mainfile(filepath='/tmp/diboo_story_scene.blend'). After saving, verify that the file exists using Python standard library os.path.exists. At the end print exactly these diagnostic messages: DIBOO BLENDER SCENE CREATED, STORY TITLE, TOTAL FRAMES, FPS, RESOLUTION, BLENDER SCENE READY. The script must not render anything itself. Return ONLY the JSON object. No Markdown. No code fences. No explanations."
+            "input": "You are the story and Blender procedural generation engine for Project_Diboo. Generate BOTH a structured story and a complete Blender Python script in ONE response. The story is for an original 3D cartoon YouTube Short. It must be highly visual and understandable without audio. Use simple objects, animals, vehicles, machines, or simple characters. Do not copy copyrighted characters, franchises, companies, or protected visual styles. Target approximately 50 seconds and remain between 40 and 60 seconds. Narration language must be English. Story structure: HOOK 0-5 seconds, SITUATION 5-12 seconds, PROBLEM 12-25 seconds, ACTION 25-40 seconds, RESOLUTION 40-50 seconds, PAYOFF 50-55 seconds. Create strong visual storytelling, clear cause and effect, dynamic camera movements, and SFX suggestions. Return ONLY valid JSON with exactly these top-level fields: story and blender_script. The story object MUST contain exactly: title, duration_target, language, hook, narration, scenes. duration_target MUST be a plain integer. language MUST be en. Every scene MUST contain: duration, description, camera, action, sfx. Scene duration MUST be a plain integer. The blender_script field MUST contain a complete standalone Python script for Blender 4.0.2. The script MUST be conservative, deterministic and reliable. It MUST NOT depend on external files, addons, downloads, textures, fonts, images, sounds or network access. It MUST run correctly in Blender 4.0.2 background mode using: blender -b --python blender_scene.py. The script MUST import bpy and math only unless another Python standard-library module is absolutely necessary. It MUST first clear the default scene using bpy.ops.object.select_all(action='SELECT') and bpy.ops.object.delete(use_global=False). Use only stable Blender 4.0.2 operators. For planes ALWAYS use bpy.ops.mesh.primitive_plane_add. NEVER use bpy.ops.mesh.create_plane. Use cubes, spheres, cylinders, cones and planes only. Create materials using bpy.data.materials.new and diffuse_color whenever possible. If using nodes, NEVER access Principled BSDF inputs by numeric indexes. NEVER use inputs[21], inputs[20], inputs[0] or any numeric socket index. Access sockets only by name using node.inputs.get('Base Color'), node.inputs.get('Roughness'), node.inputs.get('Metallic'), node.inputs.get('Specular IOR Level'), node.inputs.get('Alpha'), etc. Color values MUST be 4-value RGBA tuples. Float values MUST be single floats. Create the camera BEFORE creating animation. Set scene.camera = camera. Create at least one light. Use scene.render.engine = 'BLENDER_EEVEE' exactly. NEVER use BLENDER_EEVEE_NEXT. Configure scene.render.resolution_x = 1080, scene.render.resolution_y = 1920, scene.render.resolution_percentage = 100 and scene.render.fps = 24. Convert duration_target to frames. Set scene.frame_start = 1 and scene.frame_end = duration_target * scene.render.fps. Keep geometry and lighting simple for fast EEVEE rendering. Avoid simulations, particle systems, geometry nodes, compositing, volumetrics, cloth, smoke, fire, rigid body simulations and expensive modifiers. Prefer simple keyframe animation. Every animated object must already exist before keyframes are inserted. Before saving, verify that scene.camera is not None. The script MUST save the Blender scene using bpy.ops.wm.save_as_mainfile(filepath='/tmp/diboo_story_scene.blend'). After saving, verify that the file exists using Python standard library os.path.exists. If the file does not exist, raise RuntimeError. At the end print exactly these diagnostic messages: DIBOO BLENDER SCENE CREATED, STORY TITLE, TOTAL FRAMES, FPS, RESOLUTION, BLENDER SCENE READY. The script must not render anything itself. Return ONLY the JSON object. No Markdown. No code fences. No explanations."
           }
           JSON
 
@@ -104,7 +104,11 @@ jobs:
           import json
           from pathlib import Path
 
-          with open("gemini_response.json", "r", encoding="utf-8") as f:
+          with open(
+              "gemini_response.json",
+              "r",
+              encoding="utf-8"
+          ) as f:
               response = json.load(f)
 
           print("")
@@ -115,12 +119,18 @@ jobs:
           output_text = None
 
           for step in response.get("steps", []):
+
               if step.get("type") != "model_output":
                   continue
 
               for content in step.get("content", []):
+
                   if content.get("type") == "text":
-                      text = content.get("text", "").strip()
+
+                      text = content.get(
+                          "text",
+                          ""
+                      ).strip()
 
                       if text:
                           output_text = text
@@ -136,6 +146,7 @@ jobs:
 
           if output_text.startswith("```json"):
               output_text = output_text[7:]
+
           elif output_text.startswith("```"):
               output_text = output_text[3:]
 
@@ -146,7 +157,9 @@ jobs:
 
           try:
               generated = json.loads(output_text)
+
           except json.JSONDecodeError as error:
+
               print("")
               print("===== INVALID GEMINI JSON =====")
               print(output_text)
@@ -177,6 +190,7 @@ jobs:
 
           if blender_script.startswith("```python"):
               blender_script = blender_script[len("```python"):]
+
           elif blender_script.startswith("```"):
               blender_script = blender_script[3:]
 
@@ -190,7 +204,12 @@ jobs:
                   "Generated Blender script is empty."
               )
 
-          with open("story.json", "w", encoding="utf-8") as f:
+          with open(
+              "story.json",
+              "w",
+              encoding="utf-8"
+          ) as f:
+
               json.dump(
                   story,
                   f,
@@ -218,11 +237,17 @@ jobs:
 
           print("")
           print("===== BLENDER SCRIPT CREATED =====")
-          print("blender_scene/blender_scene.py")
+
+          print(
+              "blender_scene/blender_scene.py"
+          )
 
           print("")
           print("Script size:")
-          print(len(blender_script), "characters")
+          print(
+              len(blender_script),
+              "characters"
+          )
           PY
 
 
@@ -238,7 +263,11 @@ jobs:
           import json
           import re
 
-          with open("story.json", "r", encoding="utf-8") as f:
+          with open(
+              "story.json",
+              "r",
+              encoding="utf-8"
+          ) as f:
               story = json.load(f)
 
           print("")
@@ -256,6 +285,7 @@ jobs:
           ]
 
           for field in required_fields:
+
               if field not in story:
                   raise RuntimeError(
                       f"Missing required field: {field}"
@@ -340,6 +370,7 @@ jobs:
                   )
 
               for field in scene_fields:
+
                   if field not in scene:
                       raise RuntimeError(
                           f"Scene {index} missing field: {field}"
@@ -412,19 +443,15 @@ jobs:
 
           print("")
           print("DIBOO STORY VALIDATION: PASSED")
-
           print("")
           print("TITLE:")
           print(story["title"])
-
           print("")
           print("DURATION:")
           print(duration, "seconds")
-
           print("")
           print("SCENES:")
           print(len(scenes))
-
           print("")
           print("TOTAL SCENE DURATION:")
           print(total_scene_duration, "seconds")
@@ -755,10 +782,10 @@ jobs:
 
 
       # ============================================================
-      # 7. FORCE FAST RENDER SETTINGS
+      # 7. FAST RENDER CONFIGURATION
       # ============================================================
 
-      - name: Configure Blender for 8 samples
+      - name: Configure fast Blender render
         run: |
           set -e
 
@@ -766,11 +793,18 @@ jobs:
           echo "DIBOO FAST RENDER CONFIGURATION"
           echo "================================"
 
-          blender \
-            -b \
-            /tmp/diboo_story_scene.blend \
-            --python-expr "
+          python3 - <<'PY'
+          from pathlib import Path
+
+          source = Path(
+              "blender_scene/blender_scene.py"
+          ).read_text(
+              encoding="utf-8"
+          )
+
+          patch = r'''
           import bpy
+
           scene = bpy.context.scene
 
           scene.render.engine = 'BLENDER_EEVEE'
@@ -781,22 +815,80 @@ jobs:
 
           scene.render.fps = 24
 
-          if hasattr(scene, 'eevee'):
-              if hasattr(scene.eevee, 'taa_render_samples'):
+          scene.render.image_settings.file_format = 'PNG'
+
+          scene.render.resolution_percentage = 100
+
+          # Fast EEVEE configuration.
+          if hasattr(scene, "eevee"):
+              if hasattr(scene.eevee, "taa_render_samples"):
                   scene.eevee.taa_render_samples = 8
 
-              if hasattr(scene.eevee, 'taa_samples'):
-                  scene.eevee.taa_samples = 8
+          if hasattr(scene, "render"):
+              if hasattr(scene.render, "image_settings"):
+                  scene.render.image_settings.color_mode = 'RGBA'
+
+          print("")
+          print("================================")
+          print("DIBOO FAST RENDER CONFIGURATION")
+          print("================================")
+
+          print("")
+          print("EEVEE samples:")
+          print("8")
+
+          print("")
+          print("Resolution:")
+          print("1080x1920")
+
+          print("")
+          print("FPS:")
+          print("24")
+
+          print("")
+          print("================================")
+          print("DIBOO FORCED RENDER RANGE")
+          print("================================")
+
+          scene.frame_start = 1
+          scene.frame_end = 1200
+
+          print("")
+          print("FRAME START:")
+          print(scene.frame_start)
+
+          print("")
+          print("FRAME END:")
+          print(scene.frame_end)
+
+          print("")
+          print("TOTAL EXPECTED FRAMES:")
+          print(scene.frame_end - scene.frame_start + 1)
 
           bpy.ops.wm.save_as_mainfile(
               filepath='/tmp/diboo_story_scene.blend'
           )
+          '''
 
-          print('DIBOO FAST RENDER SETTINGS APPLIED')
-          print('EEVEE SAMPLES: 8')
-          print('RESOLUTION: 1080x1920')
-          print('FPS: 24')
-          "
+          Path(
+              "blender_scene/fast_render_config.py"
+          ).write_text(
+              patch,
+              encoding="utf-8"
+          )
+          PY
+
+          blender \
+            -b \
+            /tmp/diboo_story_scene.blend \
+            --python blender_scene/fast_render_config.py
+
+          test -f /tmp/diboo_story_scene.blend
+
+          echo ""
+          echo "================================"
+          echo "FAST RENDER CONFIGURATION: PASSED"
+          echo "================================"
 
 
       # ============================================================
@@ -811,79 +903,10 @@ jobs:
           echo "DIBOO FULL ANIMATION RENDER"
           echo "================================"
 
-          echo ""
-          echo "Render configuration:"
-          echo "EEVEE samples: 8"
-          echo "Resolution: 1080x1920"
-          echo "FPS: 24"
-          echo ""
-
           rm -rf /tmp/diboo_render
 
           mkdir -p \
             /tmp/diboo_render
-
-          # ========================================================
-          # IMPORTANT:
-          # NEVER use a huge fixed frame value here.
-          #
-          # The story is validated to be 40-60 seconds.
-          # At 24 FPS:
-          #
-          # 40 sec = 960 frames
-          # 50 sec = 1200 frames
-          # 55 sec = 1320 frames
-          # 60 sec = 1440 frames
-          #
-          # The render range is therefore forced from story.json.
-          # ========================================================
-
-          FRAME_END=$(python3 - <<'PY'
-          import json
-
-          with open(
-              "story.json",
-              "r",
-              encoding="utf-8"
-          ) as f:
-              story = json.load(f)
-
-          duration = int(
-              story["duration_target"]
-          )
-
-          fps = 24
-
-          frame_end = duration * fps
-
-          if frame_end < 960 or frame_end > 1440:
-              raise RuntimeError(
-                  f"Invalid render frame range: {frame_end}. "
-                  "Expected 960-1440 frames."
-              )
-
-          print(frame_end)
-          PY
-          )
-
-          echo ""
-          echo "================================"
-          echo "DIBOO FORCED RENDER RANGE"
-          echo "================================"
-
-          echo ""
-          echo "FRAME START:"
-          echo "1"
-
-          echo ""
-          echo "FRAME END:"
-          echo "$FRAME_END"
-
-          echo ""
-          echo "TOTAL EXPECTED FRAMES:"
-          echo "$FRAME_END"
-
-          echo ""
 
           blender \
             -b \
@@ -891,7 +914,7 @@ jobs:
             -o /tmp/diboo_render/frame_ \
             -F PNG \
             -s 1 \
-            -e "$FRAME_END" \
+            -e 1200 \
             -a
 
           echo ""
@@ -913,10 +936,10 @@ jobs:
           echo "TOTAL PNG FRAMES:"
           echo "$FRAME_COUNT"
 
-          if [ "$FRAME_COUNT" -lt 1 ]; then
+          if [ "$FRAME_COUNT" -ne 1200 ]; then
 
             echo ""
-            echo "ERROR: No PNG frames were generated."
+            echo "ERROR: Expected exactly 1200 PNG frames."
 
             exit 1
 
@@ -975,10 +998,10 @@ jobs:
           echo "PNG FRAME COUNT:"
           echo "$FRAME_COUNT"
 
-          if [ "$FRAME_COUNT" -lt 1 ]; then
+          if [ "$FRAME_COUNT" -ne 1200 ]; then
 
             echo ""
-            echo "ERROR: No PNG frames found."
+            echo "ERROR: Expected exactly 1200 PNG frames."
 
             exit 1
 
@@ -1019,7 +1042,217 @@ jobs:
 
 
       # ============================================================
-      # 10. COMPLETE TEST
+      # 10. INSTALL FFMPEG
+      # ============================================================
+
+      - name: Prepare FFmpeg
+        run: |
+          set -e
+
+          echo "================================"
+          echo "DIBOO FFMPEG PREPARATION"
+          echo "================================"
+
+          if command -v ffmpeg >/dev/null 2>&1; then
+
+            echo ""
+            echo "FFmpeg already available."
+
+          else
+
+            echo ""
+            echo "FFmpeg not found."
+            echo "Installing FFmpeg..."
+
+            sudo apt-get update
+
+            sudo apt-get install -y \
+              ffmpeg
+
+          fi
+
+          echo ""
+          echo "FFmpeg version:"
+
+          ffmpeg -version | head -n 1
+
+          echo ""
+          echo "================================"
+          echo "DIBOO FFMPEG PREPARATION: PASSED"
+          echo "================================"
+
+
+      # ============================================================
+      # 11. ENCODE FINAL MP4
+      # ============================================================
+
+      - name: Encode final MP4 with FFmpeg
+        run: |
+          set -e
+
+          echo "================================"
+          echo "DIBOO FINAL VIDEO ENCODING"
+          echo "================================"
+
+          test -d /tmp/diboo_render
+
+          FRAME_COUNT=$(find \
+            /tmp/diboo_render \
+            -maxdepth 1 \
+            -type f \
+            -name "*.png" \
+            | wc -l)
+
+          if [ "$FRAME_COUNT" -ne 1200 ]; then
+
+            echo ""
+            echo "ERROR: Expected 1200 frames before FFmpeg."
+
+            exit 1
+
+          fi
+
+          rm -f \
+            /tmp/diboo_story.mp4
+
+          echo ""
+          echo "Input frames:"
+          echo "$FRAME_COUNT"
+
+          echo ""
+          echo "Input:"
+          echo "1080x1920 PNG sequence"
+
+          echo ""
+          echo "FPS:"
+          echo "24"
+
+          echo ""
+          echo "Encoding H.264 MP4..."
+
+          ffmpeg \
+            -y \
+            -framerate 24 \
+            -start_number 1 \
+            -i /tmp/diboo_render/frame_%04d.png \
+            -c:v libx264 \
+            -preset veryfast \
+            -crf 20 \
+            -pix_fmt yuv420p \
+            -movflags +faststart \
+            -vf "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2" \
+            /tmp/diboo_story.mp4
+
+          echo ""
+          echo "================================"
+          echo "DIBOO FINAL VIDEO ENCODE FINISHED"
+          echo "================================"
+
+          test -s \
+            /tmp/diboo_story.mp4
+
+          echo ""
+          echo "FINAL MP4:"
+
+          ls -lh \
+            /tmp/diboo_story.mp4
+
+
+      # ============================================================
+      # 12. VERIFY FINAL MP4
+      # ============================================================
+
+      - name: Verify final MP4
+        run: |
+          set -e
+
+          echo "================================"
+          echo "DIBOO FINAL MP4 VERIFICATION"
+          echo "================================"
+
+          test -s \
+            /tmp/diboo_story.mp4
+
+          echo ""
+          echo "Running FFprobe verification..."
+
+          ffprobe \
+            -v error \
+            -select_streams v:0 \
+            -show_entries stream=codec_name,width,height,r_frame_rate,nb_frames \
+            -show_entries format=duration,size \
+            -of default=noprint_wrappers=1 \
+            /tmp/diboo_story.mp4
+
+          WIDTH=$(ffprobe \
+            -v error \
+            -select_streams v:0 \
+            -show_entries stream=width \
+            -of csv=p=0 \
+            /tmp/diboo_story.mp4)
+
+          HEIGHT=$(ffprobe \
+            -v error \
+            -select_streams v:0 \
+            -show_entries stream=height \
+            -of csv=p=0 \
+            /tmp/diboo_story.mp4)
+
+          FPS=$(ffprobe \
+            -v error \
+            -select_streams v:0 \
+            -show_entries stream=r_frame_rate \
+            -of csv=p=0 \
+            /tmp/diboo_story.mp4)
+
+          DURATION=$(ffprobe \
+            -v error \
+            -show_entries format=duration \
+            -of csv=p=0 \
+            /tmp/diboo_story.mp4)
+
+          echo ""
+          echo "VIDEO WIDTH:"
+          echo "$WIDTH"
+
+          echo ""
+          echo "VIDEO HEIGHT:"
+          echo "$HEIGHT"
+
+          echo ""
+          echo "VIDEO FPS:"
+          echo "$FPS"
+
+          echo ""
+          echo "VIDEO DURATION:"
+          echo "$DURATION"
+
+          if [ "$WIDTH" -ne 1080 ]; then
+            echo ""
+            echo "ERROR: MP4 width is not 1080."
+            exit 1
+          fi
+
+          if [ "$HEIGHT" -ne 1920 ]; then
+            echo ""
+            echo "ERROR: MP4 height is not 1920."
+            exit 1
+          fi
+
+          if [ "$FPS" != "24/1" ]; then
+            echo ""
+            echo "ERROR: MP4 FPS is not 24."
+            exit 1
+          fi
+
+          echo ""
+          echo "================================"
+          echo "DIBOO FINAL MP4 VERIFICATION: PASSED"
+          echo "================================"
+
+
+      # ============================================================
+      # 13. COMPLETE TEST
       # ============================================================
 
       - name: Complete Project_Diboo test
@@ -1041,6 +1274,9 @@ jobs:
           echo "Fast render configuration: PASSED"
           echo "Full animation render: PASSED"
           echo "Render verification: PASSED"
+          echo "FFmpeg preparation: PASSED"
+          echo "Final MP4 encoding: PASSED"
+          echo "Final MP4 verification: PASSED"
 
           echo ""
           echo "PROJECT_DIBOO TEST PIPELINE: PASSED"
