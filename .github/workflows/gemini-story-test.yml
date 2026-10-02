@@ -10,7 +10,7 @@ jobs:
     steps:
 
       # ============================================================
-      # 1. GENERATE STORY + BLENDER SCRIPT WITH GEMINI 3.5 FLASH-LITE
+      # 1. GENERATE STORY + BLENDER SCRIPT
       # ============================================================
 
       - name: Generate story and Blender script
@@ -29,7 +29,7 @@ jobs:
           cat > request.json <<'JSON'
           {
             "model": "gemini-3.5-flash-lite",
-            "input": "You are the story and Blender procedural generation engine for Project_Diboo. Generate BOTH a structured story and a complete Blender Python script in ONE response. The story is for an original 3D cartoon YouTube Short. It must be highly visual and understandable without audio. Use simple objects, animals, vehicles, machines, or simple characters. Do not copy copyrighted characters, franchises, companies, or protected visual styles. Target approximately 50 seconds and remain between 40 and 60 seconds. Narration language must be English. Story structure: HOOK 0-5 seconds, SITUATION 5-12 seconds, PROBLEM 12-25 seconds, ACTION 25-40 seconds, RESOLUTION 40-50 seconds, PAYOFF 50-55 seconds. Create strong visual storytelling, clear cause and effect, dynamic camera movements, and SFX suggestions. Return ONLY valid JSON with exactly these top-level fields: story and blender_script. The story object MUST contain exactly: title, duration_target, language, hook, narration, scenes. duration_target MUST be a plain integer. language MUST be en. Every scene MUST contain: duration, description, camera, action, sfx. Scene duration MUST be a plain integer. The blender_script field MUST contain a complete standalone Python script for Blender 4.0.2. The Blender script must use bpy and generate the scene procedurally. It must create the environment, ground, story objects, simple characters when needed, materials, camera, lighting, and animation. Do not require external assets, addons, downloads, or external files. Use only valid Blender 4.0.2 bpy operators and APIs. Use simple primitives such as cubes, spheres, cylinders, cones and planes. Do NOT use nonexistent operators such as bpy.ops.mesh.create_plane. Use bpy.ops.mesh.primitive_plane_add for planes. Use exactly scene.render.engine = 'BLENDER_EEVEE'. Do NOT use BLENDER_EEVEE_NEXT. Configure vertical video at 1080x1920, resolution percentage 100, and 24 FPS. Convert the story duration to frames and set scene.frame_start = 1 and scene.frame_end accordingly. Create an active camera and at least one light. Prefer reliability and fast rendering over visual complexity. The script must save the Blender file to /tmp/diboo_story_scene.blend. At the end print DIBOO BLENDER SCENE CREATED, STORY TITLE, TOTAL FRAMES, FPS, RESOLUTION and BLENDER SCENE READY. Return ONLY the JSON object. No Markdown. No code fences. No explanations."
+            "input": "You are the story and Blender procedural generation engine for Project_Diboo. Generate BOTH a structured story and a complete Blender Python script in ONE response. The story is for an original 3D cartoon YouTube Short. It must be highly visual and understandable without audio. Use simple objects, animals, vehicles, machines, or simple characters. Do not copy copyrighted characters, franchises, companies, or protected visual styles. Target approximately 50 seconds and remain between 40 and 60 seconds. Narration language must be English. Story structure: HOOK 0-5 seconds, SITUATION 5-12 seconds, PROBLEM 12-25 seconds, ACTION 25-40 seconds, RESOLUTION 40-50 seconds, PAYOFF 50-55 seconds. Create strong visual storytelling, clear cause and effect, dynamic camera movements, and SFX suggestions. Return ONLY valid JSON with exactly these top-level fields: story and blender_script. The story object MUST contain exactly: title, duration_target, language, hook, narration, scenes. duration_target MUST be a plain integer. language MUST be en. Every scene MUST contain: duration, description, camera, action, sfx. Scene duration MUST be a plain integer. The blender_script field MUST contain a complete standalone Python script for Blender 4.0.2. The Blender script must use bpy and generate the scene procedurally. It must create the environment, ground, story objects, simple characters when needed, materials, camera, lighting, and animation. Do not require external assets, addons, downloads, or external files. Use only valid Blender 4.0.2 bpy operators and APIs. Use simple primitives such as cubes, spheres, cylinders, cones and planes. For planes ALWAYS use bpy.ops.mesh.primitive_plane_add. NEVER use bpy.ops.mesh.create_plane. NEVER access Blender material node inputs by numeric socket indexes such as inputs[21], inputs[20], inputs[0], etc. When using Principled BSDF materials, access sockets by their NAME using node.inputs.get('Base Color'), node.inputs.get('Roughness'), node.inputs.get('Metallic'), node.inputs.get('Specular IOR Level'), node.inputs.get('Alpha'), or similar named sockets, and only assign a value when the socket exists. Color sockets require a 4-value RGBA tuple. Float sockets require a single float. Do not assign a float to a color socket and do not assign a tuple to a float socket. Prefer simple material creation with diffuse_color when possible to reduce compatibility problems. The script MUST create the camera before animation and set scene.camera = camera. Before saving, verify scene.camera is not None and raise an error if it is missing. Create at least one light. Use exactly scene.render.engine = 'BLENDER_EEVEE'. Do NOT use BLENDER_EEVEE_NEXT. Configure vertical video at 1080x1920, resolution percentage 100, and 24 FPS. Convert the story duration to frames and set scene.frame_start = 1 and scene.frame_end accordingly. Prefer reliability and fast rendering over visual complexity. Avoid unsupported Blender APIs and experimental features. The script must save the Blender file to /tmp/diboo_story_scene.blend. At the end print DIBOO BLENDER SCENE CREATED, STORY TITLE, TOTAL FRAMES, FPS, RESOLUTION and BLENDER SCENE READY. Return ONLY the JSON object. No Markdown. No code fences. No explanations."
           }
           JSON
 
@@ -540,15 +540,15 @@ jobs:
 
 
       # ============================================================
-      # 5. RENDER COMPLETE BLENDER ANIMATION
+      # 5. INSTALL / DETECT BLENDER
       # ============================================================
 
-      - name: Render Blender story test
+      - name: Prepare Blender
         run: |
           set -e
 
           echo "================================"
-          echo "DIBOO FULL ANIMATION RENDER"
+          echo "DIBOO BLENDER PREPARATION"
           echo "================================"
 
           if command -v blender >/dev/null 2>&1; then
@@ -579,18 +579,76 @@ jobs:
 
           fi
 
+
+      # ============================================================
+      # 6. GENERATE BLENDER SCENE
+      # ============================================================
+
+      - name: Generate Blender scene
+        run: |
+          set -e
+
+          echo "================================"
+          echo "DIBOO BLENDER SCENE GENERATOR"
+          echo "================================"
+
+          echo ""
+          echo "Running Blender scene generator..."
+
+          blender \
+            -b \
+            --python blender_scene/blender_scene.py
+
+          echo ""
+          echo "================================"
+          echo "DIBOO BLENDER SCENE GENERATION FINISHED"
+          echo "================================"
+
+          if [ ! -f /tmp/diboo_story_scene.blend ]; then
+
+            echo ""
+            echo "ERROR:"
+            echo "/tmp/diboo_story_scene.blend was not created."
+
+            exit 1
+
+          fi
+
+          echo ""
+          echo "Blender file created successfully:"
+
+          ls -lh \
+            /tmp/diboo_story_scene.blend
+
+
+      # ============================================================
+      # 7. RENDER COMPLETE ANIMATION
+      # ============================================================
+
+      - name: Render Blender story test
+        run: |
+          set -e
+
+          echo "================================"
+          echo "DIBOO FULL ANIMATION RENDER"
+          echo "================================"
+
           rm -rf /tmp/diboo_render
-          mkdir -p /tmp/diboo_render
+
+          mkdir -p \
+            /tmp/diboo_render
 
           echo ""
           echo "Starting complete Blender animation render..."
 
           blender \
             -b \
-            --python blender_scene/blender_scene.py \
+            /tmp/diboo_story_scene.blend \
             -o /tmp/diboo_render/frame_ \
             -F PNG \
-            -f 1
+            -s 1 \
+            -e 999999 \
+            -a
 
           echo ""
           echo "================================"
@@ -599,29 +657,35 @@ jobs:
 
           echo ""
           echo "TOTAL RENDER SIZE:"
-          du -sh /tmp/diboo_render
 
-          echo ""
-          echo "TOTAL PNG FRAMES:"
+          du -sh \
+            /tmp/diboo_render
 
-          FRAME_COUNT=$(find /tmp/diboo_render \
+          FRAME_COUNT=$(find \
+            /tmp/diboo_render \
             -maxdepth 1 \
             -type f \
             -name "*.png" \
             | wc -l)
 
+          echo ""
+          echo "TOTAL PNG FRAMES:"
           echo "$FRAME_COUNT"
 
           if [ "$FRAME_COUNT" -lt 1 ]; then
+
             echo ""
             echo "ERROR: No PNG frames were generated."
+
             exit 1
+
           fi
 
           echo ""
           echo "FIRST 3 FRAMES:"
 
-          find /tmp/diboo_render \
+          find \
+            /tmp/diboo_render \
             -maxdepth 1 \
             -type f \
             -name "*.png" \
@@ -631,15 +695,13 @@ jobs:
           echo ""
           echo "LAST 3 FRAMES:"
 
-          find /tmp/diboo_render \
+          find \
+            /tmp/diboo_render \
             -maxdepth 1 \
             -type f \
             -name "*.png" \
             | sort \
             | tail -n 3
-
-          echo ""
-          echo "Render directory verified."
 
           echo ""
           echo "================================"
@@ -648,7 +710,7 @@ jobs:
 
 
       # ============================================================
-      # 6. VERIFY COMPLETE ANIMATION RENDER
+      # 8. VERIFY COMPLETE ANIMATION
       # ============================================================
 
       - name: Verify complete animation render
@@ -660,12 +722,16 @@ jobs:
           echo "================================"
 
           if [ ! -d /tmp/diboo_render ]; then
+
             echo ""
             echo "ERROR: Render directory does not exist."
+
             exit 1
+
           fi
 
-          FRAME_COUNT=$(find /tmp/diboo_render \
+          FRAME_COUNT=$(find \
+            /tmp/diboo_render \
             -maxdepth 1 \
             -type f \
             -name "*.png" \
@@ -676,14 +742,19 @@ jobs:
           echo "$FRAME_COUNT"
 
           if [ "$FRAME_COUNT" -lt 1 ]; then
+
             echo ""
             echo "ERROR: No PNG frames found."
+
             exit 1
+
           fi
 
           echo ""
           echo "FIRST FRAME:"
-          find /tmp/diboo_render \
+
+          find \
+            /tmp/diboo_render \
             -maxdepth 1 \
             -type f \
             -name "*.png" \
@@ -692,7 +763,9 @@ jobs:
 
           echo ""
           echo "LAST FRAME:"
-          find /tmp/diboo_render \
+
+          find \
+            /tmp/diboo_render \
             -maxdepth 1 \
             -type f \
             -name "*.png" \
@@ -701,7 +774,9 @@ jobs:
 
           echo ""
           echo "TOTAL RENDER SIZE:"
-          du -sh /tmp/diboo_render
+
+          du -sh \
+            /tmp/diboo_render
 
           echo ""
           echo "================================"
@@ -710,26 +785,29 @@ jobs:
 
 
       # ============================================================
-      # 7. COMPLETE JOB
+      # 9. COMPLETE TEST
       # ============================================================
 
-      - name: Complete job
+      - name: Complete Project_Diboo test
         run: |
           set -e
 
           echo ""
           echo "================================"
           echo "PROJECT_DIBOO"
-          echo "COMPLETE JOB"
+          echo "COMPLETE TEST"
           echo "================================"
 
           echo ""
           echo "Story generation: PASSED"
-          echo "Blender script: PASSED"
-          echo "Blender scene: PASSED"
+          echo "Story validation: PASSED"
+          echo "Blender script validation: PASSED"
+          echo "Blender preparation: PASSED"
+          echo "Blender scene generation: PASSED"
           echo "Full animation render: PASSED"
           echo "Render verification: PASSED"
 
           echo ""
           echo "PROJECT_DIBOO TEST PIPELINE: PASSED"
+
           echo "================================"
