@@ -10,10 +10,10 @@ jobs:
     steps:
 
       # ============================================================
-      # 1. GENERATE STORY WITH GEMINI FLASH
+      # 1. GENERATE STORY + BLENDER SCRIPT WITH GEMINI FLASH
       # ============================================================
 
-      - name: Generate structured story
+      - name: Generate story and Blender script
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
@@ -21,13 +21,15 @@ jobs:
 
           echo "================================"
           echo "PROJECT_DIBOO"
-          echo "GEMINI FLASH STORY GENERATOR"
+          echo "GEMINI FLASH GENERATOR"
           echo "================================"
+
+          mkdir -p blender_scene
 
           cat > request.json <<'JSON'
           {
             "model": "gemini-flash-latest",
-            "input": "Create one original 3D cartoon YouTube Short story for the Project_Diboo channel. The story must be highly visual and easy to understand even without audio. Use simple objects, animals, vehicles, machines, or simple characters. Do not copy any copyrighted character, franchise, company, or protected visual style. The story must target approximately 50 seconds and must remain between 40 and 60 seconds. The narration must be in English. The story structure should contain: HOOK from 0-5 seconds, SITUATION from 5-12 seconds, PROBLEM from 12-25 seconds, ACTION from 25-40 seconds, RESOLUTION from 40-50 seconds, and PAYOFF from 50-55 seconds. The exact timing may vary while remaining between 40 and 60 seconds. Create a strong visual hook, clear cause-and-effect actions, dynamic camera movements, simple visual storytelling, and simple SFX suggestions. Return ONLY valid JSON with exactly these top-level fields: title, duration_target, language, hook, narration, scenes. duration_target MUST be a plain integer containing only the number of seconds, for example 53, never a string and never include the word seconds. Each scene must contain: duration, description, camera, action, sfx. Scene duration MUST also be a plain integer. The language field must be en."
+            "input": "You are the story and Blender procedural generation engine for Project_Diboo. Generate BOTH a structured story and a complete Blender Python script in ONE response. The story is for an original 3D cartoon YouTube Short. It must be highly visual and understandable without audio. Use simple objects, animals, vehicles, machines, or simple characters. Do not copy copyrighted characters, franchises, companies, or protected visual styles. Target approximately 50 seconds and remain between 40 and 60 seconds. Narration language must be English. Story structure: HOOK 0-5 seconds, SITUATION 5-12 seconds, PROBLEM 12-25 seconds, ACTION 25-40 seconds, RESOLUTION 40-50 seconds, PAYOFF 50-55 seconds. Create strong visual storytelling, cause-and-effect actions, dynamic camera movements, and SFX suggestions. Return ONLY valid JSON with exactly these top-level fields: story and blender_script. The story object MUST contain exactly: title, duration_target, language, hook, narration, scenes. duration_target MUST be a plain integer. language MUST be en. Every scene MUST contain: duration, description, camera, action, sfx. Scene duration MUST be a plain integer. The blender_script field MUST contain a complete standalone Python script for Blender 4.0.2. The Blender script must use bpy, generate the scene procedurally, create environment, ground, story objects, simple characters when needed, materials, camera, lighting, and animation. Do not require external assets, addons, downloads, or external files. Use simple primitives such as cubes, spheres, cylinders, cones and planes. Use exactly scene.render.engine = 'BLENDER_EEVEE'. Do NOT use BLENDER_EEVEE_NEXT. Configure vertical video at 1080x1920, resolution percentage 100, 24 FPS. Convert the story duration to frames and set scene.frame_start = 1 and scene.frame_end accordingly. Create an active camera and at least one light. Prefer reliability and fast rendering over visual complexity. The script must save the Blender file to /tmp/diboo_story_scene.blend. At the end print DIBOO BLENDER SCENE CREATED, STORY TITLE, TOTAL FRAMES, FPS, RESOLUTION and BLENDER SCENE READY. Return ONLY the JSON object. No Markdown. No code fences. No explanations."
           }
           JSON
 
@@ -55,7 +57,7 @@ jobs:
 
               if echo "$RESPONSE" | grep -qE '"code": ?503|"status": ?"UNAVAILABLE"|service_unavailable'; then
                 echo ""
-                echo "Gemini Flash is temporarily unavailable."
+                echo "Gemini Flash temporarily unavailable."
                 echo "Waiting 20 seconds before retry..."
                 sleep 20
                 continue
@@ -72,24 +74,25 @@ jobs:
 
           if [ "$SUCCESS" != "true" ]; then
             echo ""
-            echo "===== GEMINI FLASH FAILED AFTER 5 ATTEMPTS ====="
+            echo "===== GEMINI FAILED AFTER 5 ATTEMPTS ====="
             exit 1
           fi
 
           echo ""
-          echo "===== GEMINI FLASH RESPONSE RECEIVED ====="
+          echo "===== GEMINI RESPONSE RECEIVED ====="
 
 
       # ============================================================
-      # 2. EXTRACT MODEL OUTPUT
+      # 2. EXTRACT STORY + BLENDER SCRIPT
       # ============================================================
 
-      - name: Extract generated story
+      - name: Extract generated Project_Diboo files
         run: |
           set -e
 
           python3 - <<'PY'
           import json
+          from pathlib import Path
 
           with open(
               "gemini_response.json",
@@ -100,10 +103,10 @@ jobs:
 
           print("")
           print("================================")
-          print("EXTRACTING GEMINI STORY")
+          print("EXTRACTING PROJECT_DIBOO OUTPUT")
           print("================================")
 
-          story_text = None
+          output_text = None
 
           for step in response.get("steps", []):
 
@@ -114,16 +117,19 @@ jobs:
 
                   if content.get("type") == "text":
 
-                      text = content.get("text", "").strip()
+                      text = content.get(
+                          "text",
+                          ""
+                      ).strip()
 
                       if text:
-                          story_text = text
+                          output_text = text
                           break
 
-              if story_text:
+              if output_text:
                   break
 
-          if not story_text:
+          if not output_text:
 
               print("")
               print("===== GEMINI RESPONSE STRUCTURE =====")
@@ -137,35 +143,74 @@ jobs:
               )
 
               raise RuntimeError(
-                  "Could not find model output text."
+                  "Gemini response did not contain output text."
               )
 
-          print("")
-          print("===== MODEL OUTPUT FOUND =====")
-          print(story_text)
+          if output_text.startswith("```json"):
+              output_text = output_text[7:]
 
-          if story_text.startswith("```json"):
-              story_text = story_text[7:]
+          elif output_text.startswith("```"):
+              output_text = output_text[3:]
 
-          elif story_text.startswith("```"):
-              story_text = story_text[3:]
+          if output_text.rstrip().endswith("```"):
+              output_text = output_text.rstrip()[:-3]
 
-          if story_text.endswith("```"):
-              story_text = story_text[:-3]
-
-          story_text = story_text.strip()
+          output_text = output_text.strip()
 
           try:
-              story = json.loads(story_text)
+              generated = json.loads(output_text)
 
           except json.JSONDecodeError as error:
 
               print("")
-              print("===== INVALID JSON =====")
-              print(story_text)
+              print("===== INVALID GEMINI JSON =====")
+              print(output_text)
 
               raise RuntimeError(
                   f"Gemini did not return valid JSON: {error}"
+              )
+
+          if "story" not in generated:
+              raise RuntimeError(
+                  "Gemini output is missing story."
+              )
+
+          if "blender_script" not in generated:
+              raise RuntimeError(
+                  "Gemini output is missing blender_script."
+              )
+
+          story = generated["story"]
+          blender_script = generated["blender_script"]
+
+          if not isinstance(
+              blender_script,
+              str
+          ):
+              raise RuntimeError(
+                  "blender_script must be a string."
+              )
+
+          blender_script = blender_script.strip()
+
+          if blender_script.startswith("```python"):
+              blender_script = blender_script[
+                  len("```python"):
+              ]
+
+          elif blender_script.startswith("```"):
+              blender_script = blender_script[3:]
+
+          if blender_script.rstrip().endswith("```"):
+              blender_script = (
+                  blender_script.rstrip()[:-3]
+              )
+
+          blender_script = blender_script.strip()
+
+          if not blender_script:
+              raise RuntimeError(
+                  "Generated Blender script is empty."
               )
 
           with open(
@@ -181,8 +226,15 @@ jobs:
                   ensure_ascii=False
               )
 
+          Path(
+              "blender_scene/blender_scene.py"
+          ).write_text(
+              blender_script,
+              encoding="utf-8"
+          )
+
           print("")
-          print("===== STORY JSON CREATED =====")
+          print("===== STORY.JSON CREATED =====")
 
           print(
               json.dumps(
@@ -190,6 +242,20 @@ jobs:
                   indent=2,
                   ensure_ascii=False
               )
+          )
+
+          print("")
+          print("===== BLENDER SCRIPT CREATED =====")
+
+          print(
+              "blender_scene/blender_scene.py"
+          )
+
+          print("")
+          print("Script size:")
+          print(
+              len(blender_script),
+              "characters"
           )
           PY
 
@@ -242,17 +308,14 @@ jobs:
           raw_duration = story["duration_target"]
 
           if isinstance(raw_duration, bool):
-
               raise RuntimeError(
                   "duration_target cannot be boolean."
               )
 
           elif isinstance(raw_duration, int):
-
               duration = raw_duration
 
           elif isinstance(raw_duration, float):
-
               duration = int(raw_duration)
 
           elif isinstance(raw_duration, str):
@@ -263,9 +326,8 @@ jobs:
               )
 
               if not match:
-
                   raise RuntimeError(
-                      "Could not extract duration from duration_target."
+                      "Could not extract duration."
                   )
 
               duration = int(
@@ -273,7 +335,6 @@ jobs:
               )
 
           else:
-
               raise RuntimeError(
                   "Unsupported duration_target format."
               )
@@ -288,7 +349,6 @@ jobs:
           )
 
           if not 40 <= duration <= 60:
-
               raise RuntimeError(
                   f"Invalid duration: {duration}. "
                   "Must be between 40 and 60 seconds."
@@ -300,13 +360,11 @@ jobs:
               scenes,
               list
           ):
-
               raise RuntimeError(
                   "scenes must be a list."
               )
 
           if len(scenes) == 0:
-
               raise RuntimeError(
                   "No scenes were generated."
               )
@@ -319,6 +377,8 @@ jobs:
               "sfx"
           ]
 
+          total_scene_duration = 0
+
           for index, scene in enumerate(
               scenes,
               start=1
@@ -328,7 +388,6 @@ jobs:
                   scene,
                   dict
               ):
-
                   raise RuntimeError(
                       f"Scene {index} is not an object."
                   )
@@ -336,56 +395,60 @@ jobs:
               for field in scene_fields:
 
                   if field not in scene:
-
                       raise RuntimeError(
-                          f"Scene {index} is missing field: {field}"
+                          f"Scene {index} missing field: {field}"
                       )
 
-              scene_duration = scene["duration"]
+              raw_scene_duration = scene["duration"]
 
               if isinstance(
-                  scene_duration,
+                  raw_scene_duration,
                   bool
               ):
-
                   raise RuntimeError(
                       f"Scene {index} duration cannot be boolean."
                   )
 
               elif isinstance(
-                  scene_duration,
+                  raw_scene_duration,
                   str
               ):
 
                   match = re.search(
                       r"\d+",
-                      scene_duration
+                      raw_scene_duration
                   )
 
                   if not match:
-
                       raise RuntimeError(
                           f"Scene {index} has invalid duration."
                       )
 
-                  scene["duration"] = int(
+                  scene_duration = int(
                       match.group(0)
                   )
 
               elif isinstance(
-                  scene_duration,
+                  raw_scene_duration,
                   (int, float)
               ):
-
-                  scene["duration"] = int(
-                      scene_duration
+                  scene_duration = int(
+                      raw_scene_duration
                   )
 
               else:
-
                   raise RuntimeError(
                       f"Scene {index} duration must be numeric."
                   )
+
+              if scene_duration <= 0:
+                  raise RuntimeError(
+                      f"Scene {index} duration must be positive."
+                  )
+
+              scene["duration"] = scene_duration
+
+              total_scene_duration += scene_duration
 
           with open(
               "story.json",
@@ -404,15 +467,12 @@ jobs:
           print("================================")
           print("DIBOO STORY VALIDATION: PASSED")
           print("================================")
-          print("")
 
+          print("")
           print("TITLE:")
-          print(
-              story["title"]
-          )
+          print(story["title"])
 
           print("")
-
           print("DURATION:")
           print(
               story["duration_target"],
@@ -420,381 +480,60 @@ jobs:
           )
 
           print("")
-
           print("LANGUAGE:")
-          print(
-              story["language"]
-          )
+          print(story["language"])
 
           print("")
-
           print("SCENES:")
+          print(len(scenes))
+
+          print("")
+          print("TOTAL SCENE DURATION:")
           print(
-              len(scenes)
+              total_scene_duration,
+              "seconds"
           )
 
           print("")
-
           print("story.json is valid.")
           PY
 
 
       # ============================================================
-      # 4. GENERATE BLENDER PYTHON SCRIPT WITH GEMINI
+      # 4. VALIDATE GENERATED BLENDER SCRIPT
       # ============================================================
 
-      - name: Generate Blender Python script
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      - name: Validate Blender Python script
         run: |
           set -e
 
           echo "================================"
-          echo "PROJECT_DIBOO"
-          echo "GEMINI BLENDER SCRIPT GENERATOR"
+          echo "DIBOO BLENDER SCRIPT VALIDATION"
           echo "================================"
 
-          mkdir -p blender_scene
-
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-
-          with open(
-              "story.json",
-              "r",
-              encoding="utf-8"
-          ) as f:
-              story = json.load(f)
-
-          prompt = r"""
-          You are the procedural Blender scene generator for Project_Diboo.
-
-          Convert the supplied story.json into ONE complete Python script
-          that can be executed by Blender 4.0.2 in background mode.
-
-          IMPORTANT OUTPUT RULES:
-
-          - Return ONLY Python code.
-          - Do NOT return Markdown.
-          - Do NOT use ```python.
-          - Do NOT explain anything.
-          - The result must be a complete standalone Blender Python script.
-          - Use bpy.
-          - Do not require external Blender addons.
-          - Do not require external assets.
-          - Everything must be generated procedurally.
-          - Do not download anything.
-          - Do not use external files.
-
-          BLENDER VERSION:
-
-          Blender 4.0.2
-
-          RENDER ENGINE:
-
-          Use exactly:
-
-          scene.render.engine = 'BLENDER_EEVEE'
-
-          Do NOT use BLENDER_EEVEE_NEXT.
-
-          SCENE:
-
-          Create a simple but visually clear 3D cartoon scene based on
-          the story.
-
-          The script must create:
-
-          - environment
-          - ground
-          - required story objects
-          - simple procedural characters if needed
-          - materials
-          - camera
-          - lighting
-          - animation
-
-          CAMERA:
-
-          The final composition must be vertical.
-
-          Use:
-
-          resolution_x = 1080
-          resolution_y = 1920
-          resolution_percentage = 100
-
-          FPS:
-
-          24
-
-          ANIMATION:
-
-          The story duration is supplied in story.json.
-
-          Convert the duration into frames using 24 FPS.
-
-          Set:
-
-          scene.frame_start = 1
-          scene.frame_end = <calculated final frame>
-
-          Use Blender keyframes for animation.
-
-          ROBUSTNESS:
-
-          - Always create an active camera.
-          - Always create at least one light.
-          - Always create geometry.
-          - Avoid simulations.
-          - Avoid physics.
-          - Avoid external dependencies.
-          - Avoid UI-only bpy operators.
-          - The script must work with:
-
-            blender -b --python blender_scene.py
-
-          Start by clearing the default scene.
-
-          Use simple primitives such as:
-
-          cubes
-          spheres
-          cylinders
-          cones
-          planes
-
-          Prefer reliability and fast rendering over visual complexity.
-
-          The script must save the resulting Blender file to:
-
-          /tmp/diboo_story_scene.blend
-
-          At the end print:
-
-          DIBOO BLENDER SCENE CREATED
-
-          STORY TITLE: <story title>
-
-          TOTAL FRAMES: <number>
-
-          FPS: 24
-
-          RESOLUTION: 1080x1920
-
-          BLENDER SCENE READY
-
-          STORY JSON:
-          """
-
-          full_prompt = (
-              prompt
-              + "\n"
-              + json.dumps(
-                  story,
-                  indent=2,
-                  ensure_ascii=False
-              )
-          )
-
-          request = {
-              "model": "gemini-flash-latest",
-              "input": full_prompt
-          }
-
-          Path(
-              "blender_scene/request.json"
-          ).write_text(
-              json.dumps(
-                  request,
-                  ensure_ascii=False
-              ),
-              encoding="utf-8"
-          )
-
-          print("")
-          print("===== BLENDER SCRIPT REQUEST CREATED =====")
-          print("")
-          print("Story:")
-          print(story["title"])
-          print("")
-          print("Scenes:")
-          print(len(story["scenes"]))
-          PY
-
-          SUCCESS=false
-
-          for ATTEMPT in 1 2 3 4 5
-          do
-
-            echo ""
-            echo "===== BLENDER SCRIPT GEMINI ATTEMPT $ATTEMPT / 5 ====="
-
-            RESPONSE=$(curl -s \
-              -H "x-goog-api-key: $GEMINI_API_KEY" \
-              -H "Content-Type: application/json" \
-              -X POST \
-              "https://generativelanguage.googleapis.com/v1beta/interactions" \
-              -d @blender_scene/request.json)
-
-            echo "$RESPONSE" \
-              > blender_scene/gemini_response.json
-
-            echo ""
-            echo "===== GEMINI RESPONSE ====="
-            cat blender_scene/gemini_response.json
-
-            if echo "$RESPONSE" | grep -q '"error"'; then
-
-              if echo "$RESPONSE" | grep -qE \
-                '"code": ?503|"status": ?"UNAVAILABLE"|service_unavailable'; then
-
-                echo ""
-                echo "Gemini is temporarily unavailable."
-                echo "Waiting 30 seconds before retry..."
-
-                sleep 30
-                continue
-              fi
-
-              echo ""
-              echo "===== GEMINI BLENDER SCRIPT API ERROR ====="
-              exit 1
-            fi
-
-            SUCCESS=true
-            break
-
-          done
-
-          if [ "$SUCCESS" != "true" ]; then
-
-            echo ""
-            echo "===== GEMINI BLENDER SCRIPT FAILED AFTER 5 ATTEMPTS ====="
-            exit 1
-
-          fi
-
-          echo ""
-          echo "===== EXTRACTING BLENDER SCRIPT ====="
-
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-
-          with open(
-              "blender_scene/gemini_response.json",
-              "r",
-              encoding="utf-8"
-          ) as f:
-              response = json.load(f)
-
-          script_text = None
-
-          for step in response.get("steps", []):
-
-              if step.get("type") != "model_output":
-                  continue
-
-              for content in step.get("content", []):
-
-                  if content.get("type") == "text":
-
-                      text = content.get(
-                          "text",
-                          ""
-                      ).strip()
-
-                      if text:
-
-                          script_text = text
-                          break
-
-              if script_text:
-                  break
-
-          if not script_text:
-
-              print("")
-              print("===== GEMINI RESPONSE STRUCTURE =====")
-
-              print(
-                  json.dumps(
-                      response,
-                      indent=2,
-                      ensure_ascii=False
-                  )
-              )
-
-              raise RuntimeError(
-                  "Gemini response did not contain Blender script output."
-              )
-
-          if script_text.startswith("```python"):
-
-              script_text = script_text[
-                  len("```python"):
-              ]
-
-          elif script_text.startswith("```"):
-
-              script_text = script_text[3:]
-
-          if script_text.rstrip().endswith("```"):
-
-              script_text = (
-                  script_text.rstrip()[:-3]
-              )
-
-          script_text = script_text.strip()
-
-          if not script_text:
-
-              raise RuntimeError(
-                  "Generated Blender script is empty."
-              )
-
-          output = Path(
-              "blender_scene/blender_scene.py"
-          )
-
-          output.write_text(
-              script_text,
-              encoding="utf-8"
-          )
-
-          print("")
-          print("================================")
-          print("BLENDER SCRIPT GENERATED")
-          print("================================")
-
-          print("")
-          print("File:")
-          print(output)
-
-          print("")
-          print("Size:")
-          print(
-              output.stat().st_size,
-              "bytes"
-          )
-          PY
-
-          echo ""
-          echo "===== VALIDATING BLENDER PYTHON SYNTAX ====="
+          test -s \
+            blender_scene/blender_scene.py
 
           python3 -m py_compile \
             blender_scene/blender_scene.py
 
           echo ""
+          echo "Blender Python syntax:"
+          echo "PASSED"
+
+          echo ""
+          echo "Script:"
+          ls -lh \
+            blender_scene/blender_scene.py
+
+          echo ""
           echo "================================"
-          echo "BLENDER SCRIPT VALIDATION: PASSED"
+          echo "DIBOO BLENDER SCRIPT: PASSED"
           echo "================================"
 
 
       # ============================================================
-      # 5. RENDER ONE FRAME FROM GENERATED BLENDER SCRIPT
+      # 5. RENDER ONE FRAME WITH BLENDER
       # ============================================================
 
       - name: Render Blender story test
@@ -836,7 +575,7 @@ jobs:
           mkdir -p /tmp/diboo_render
 
           echo ""
-          echo "Starting Blender with generated script..."
+          echo "Starting Blender..."
 
           blender \
             -b \
