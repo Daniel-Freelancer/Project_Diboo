@@ -340,7 +340,6 @@ jobs:
                   )
 
               for field in scene_fields:
-
                   if field not in scene:
                       raise RuntimeError(
                           f"Scene {index} missing field: {field}"
