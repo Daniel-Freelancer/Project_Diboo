@@ -104,11 +104,7 @@ jobs:
           import json
           from pathlib import Path
 
-          with open(
-              "gemini_response.json",
-              "r",
-              encoding="utf-8"
-          ) as f:
+          with open("gemini_response.json", "r", encoding="utf-8") as f:
               response = json.load(f)
 
           print("")
@@ -119,18 +115,12 @@ jobs:
           output_text = None
 
           for step in response.get("steps", []):
-
               if step.get("type") != "model_output":
                   continue
 
               for content in step.get("content", []):
-
                   if content.get("type") == "text":
-
-                      text = content.get(
-                          "text",
-                          ""
-                      ).strip()
+                      text = content.get("text", "").strip()
 
                       if text:
                           output_text = text
@@ -146,7 +136,6 @@ jobs:
 
           if output_text.startswith("```json"):
               output_text = output_text[7:]
-
           elif output_text.startswith("```"):
               output_text = output_text[3:]
 
@@ -157,9 +146,7 @@ jobs:
 
           try:
               generated = json.loads(output_text)
-
           except json.JSONDecodeError as error:
-
               print("")
               print("===== INVALID GEMINI JSON =====")
               print(output_text)
@@ -190,7 +177,6 @@ jobs:
 
           if blender_script.startswith("```python"):
               blender_script = blender_script[len("```python"):]
-
           elif blender_script.startswith("```"):
               blender_script = blender_script[3:]
 
@@ -204,12 +190,7 @@ jobs:
                   "Generated Blender script is empty."
               )
 
-          with open(
-              "story.json",
-              "w",
-              encoding="utf-8"
-          ) as f:
-
+          with open("story.json", "w", encoding="utf-8") as f:
               json.dump(
                   story,
                   f,
@@ -237,17 +218,11 @@ jobs:
 
           print("")
           print("===== BLENDER SCRIPT CREATED =====")
-
-          print(
-              "blender_scene/blender_scene.py"
-          )
+          print("blender_scene/blender_scene.py")
 
           print("")
           print("Script size:")
-          print(
-              len(blender_script),
-              "characters"
-          )
+          print(len(blender_script), "characters")
           PY
 
 
@@ -263,11 +238,7 @@ jobs:
           import json
           import re
 
-          with open(
-              "story.json",
-              "r",
-              encoding="utf-8"
-          ) as f:
+          with open("story.json", "r", encoding="utf-8") as f:
               story = json.load(f)
 
           print("")
@@ -285,7 +256,6 @@ jobs:
           ]
 
           for field in required_fields:
-
               if field not in story:
                   raise RuntimeError(
                       f"Missing required field: {field}"
@@ -443,15 +413,19 @@ jobs:
 
           print("")
           print("DIBOO STORY VALIDATION: PASSED")
+
           print("")
           print("TITLE:")
           print(story["title"])
+
           print("")
           print("DURATION:")
           print(duration, "seconds")
+
           print("")
           print("SCENES:")
           print(len(scenes))
+
           print("")
           print("TOTAL SCENE DURATION:")
           print(total_scene_duration, "seconds")
@@ -609,7 +583,6 @@ jobs:
 
             python3 - <<'PY'
           import json
-
           from pathlib import Path
 
           script = Path(
@@ -851,13 +824,75 @@ jobs:
           mkdir -p \
             /tmp/diboo_render
 
+          # ========================================================
+          # IMPORTANT:
+          # NEVER use a huge fixed frame value here.
+          #
+          # The story is validated to be 40-60 seconds.
+          # At 24 FPS:
+          #
+          # 40 sec = 960 frames
+          # 50 sec = 1200 frames
+          # 55 sec = 1320 frames
+          # 60 sec = 1440 frames
+          #
+          # The render range is therefore forced from story.json.
+          # ========================================================
+
+          FRAME_END=$(python3 - <<'PY'
+          import json
+
+          with open(
+              "story.json",
+              "r",
+              encoding="utf-8"
+          ) as f:
+              story = json.load(f)
+
+          duration = int(
+              story["duration_target"]
+          )
+
+          fps = 24
+
+          frame_end = duration * fps
+
+          if frame_end < 960 or frame_end > 1440:
+              raise RuntimeError(
+                  f"Invalid render frame range: {frame_end}. "
+                  "Expected 960-1440 frames."
+              )
+
+          print(frame_end)
+          PY
+          )
+
+          echo ""
+          echo "================================"
+          echo "DIBOO FORCED RENDER RANGE"
+          echo "================================"
+
+          echo ""
+          echo "FRAME START:"
+          echo "1"
+
+          echo ""
+          echo "FRAME END:"
+          echo "$FRAME_END"
+
+          echo ""
+          echo "TOTAL EXPECTED FRAMES:"
+          echo "$FRAME_END"
+
+          echo ""
+
           blender \
             -b \
             /tmp/diboo_story_scene.blend \
             -o /tmp/diboo_render/frame_ \
             -F PNG \
             -s 1 \
-            -e 999999 \
+            -e "$FRAME_END" \
             -a
 
           echo ""
@@ -942,9 +977,12 @@ jobs:
           echo "$FRAME_COUNT"
 
           if [ "$FRAME_COUNT" -lt 1 ]; then
+
             echo ""
             echo "ERROR: No PNG frames found."
+
             exit 1
+
           fi
 
           echo ""
