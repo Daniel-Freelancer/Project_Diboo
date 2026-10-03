@@ -40,26 +40,51 @@ jobs:
       BLENDER_MAX_REPAIRS: "4"
 
     steps:
+
+      # ============================================================
+      # INITIALIZE
+      # ============================================================
+
       - name: Initialize Project_Diboo
         shell: bash
         run: |
           set -Eeuo pipefail
+
           mkdir -p blender_scene logs output
+
           echo "========================================"
           echo "PROJECT_DIBOO"
           echo "VIDEO ${VIDEO_NUMBER} / 10"
           echo "========================================"
+
           date -u
           uname -a
+
+      # ============================================================
+      # DEPENDENCIES
+      # ============================================================
 
       - name: Prepare Blender and FFmpeg
         shell: bash
         run: |
           set -Eeuo pipefail
+
           sudo apt-get update
-          sudo apt-get install -y blender ffmpeg libtbb12 libegl1 libgl1 libglib2.0-0
+
+          sudo apt-get install -y \
+            blender \
+            ffmpeg \
+            libtbb12 \
+            libegl1 \
+            libgl1 \
+            libglib2.0-0
+
           blender --version | head -n 1
           ffmpeg -version | head -n 1
+
+      # ============================================================
+      # GEMINI STORY + BLENDER SCRIPT
+      # ============================================================
 
       - name: Generate story and Blender script
         env:
@@ -67,49 +92,83 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
+
           test -n "${GEMINI_API_KEY}"
 
           cat > request.json <<'JSON'
           {
             "model": "gemini-3.5-flash-lite",
-            "input": "You are the complete visual story, editing-plan and Blender procedural generation engine for Project_Diboo, an original animated short-form channel. Generate BOTH a complete structured production package and a complete Blender Python script in ONE response. The final result is an original animated YouTube Short / TikTok Short designed primarily through VISUAL STORYTELLING. There must be NO spoken narration, NO voice-over and NO subtitles. The viewer must understand the story from the animation itself, character actions, expressions, staging, camera work, visual cause-and-effect and sound design. The final video must feel like an actual animated short, NOT a collection of primitive 3D objects, NOT cardboard, NOT a basic Blender test, NOT a technical visualization and NOT an educational 3D demo. Use expressive characters, readable silhouettes, appealing proportions, strong posing, emotional beats, visual comedy or emotion, cinematic framing, deliberate camera movement, continuity between shots and a strong beginning-middle-ending structure. Do not imitate or copy any existing copyrighted animation, character, franchise or protected visual style. The visual language must remain original. Create a new original story for this generation. TARGET approximately 50 seconds and remain between 40 and 60 seconds. Use English only for metadata and scene descriptions. Use 24 FPS and vertical 1080x1920 composition. RETURN ONLY valid JSON with exactly these top-level fields: story and blender_script. The story object MUST contain exactly these fields: title, description, hashtags, duration_target, language, hook, visual_theme, music, scenes. duration_target MUST be a plain integer between 40 and 60. language MUST be en. hook MUST be a non-empty string describing the opening visual hook. visual_theme MUST be a non-empty object containing style, palette, lighting, animation and camera. music MUST be a non-empty object containing style, mood, intensity, instrumentation and timing. scenes MUST be a non-empty list. EVERY scene MUST contain: duration, description, camera, action, emotion, visual_transition, sfx, music. Scene duration MUST be a plain positive integer. The total scene duration should approximately equal duration_target. Do NOT create narration fields. Do NOT create subtitle fields. Do NOT create voice fields. The entire story must be understandable without dialogue or text. Characters must communicate through body language, facial expressions, eye direction, movement, timing and staging. Each scene should have a clear visual purpose. The opening scene must immediately establish a strong visual hook. The middle must escalate the situation or reveal new information. The final scenes must provide a clear payoff. Avoid random disconnected events. Maintain character identity, environment continuity and object continuity between scenes. The description must be suitable for the YouTube/TikTok post. Hashtags must be a list of relevant hashtags. Music must describe an original royalty-free ambient score that changes according to the emotional circumstance of the scene. Music must never depend on external music files. SFX must describe simple effects that can later be synthesized procedurally. The Blender script MUST be a complete standalone Python script for Blender 4.0.2. The script MUST be conservative, deterministic and reliable. It MUST NOT depend on external files, addons, downloads, textures, fonts, images, sounds or network access. It MUST run correctly in Blender 4.0.2 background mode using blender -b --python blender_scene.py. The script MUST import bpy and math only unless another Python standard-library module is absolutely necessary. It MUST first clear the default scene using bpy.ops.object.select_all(action='SELECT') and bpy.ops.object.delete(use_global=False). Use stable Blender 4.0.2 operators. For planes ALWAYS use bpy.ops.mesh.primitive_plane_add. NEVER use bpy.ops.mesh.create_plane. Use cubes, spheres, cylinders, cones and planes only. Create materials using bpy.data.materials.new and diffuse_color whenever possible. If using nodes, NEVER access Principled BSDF inputs by numeric indexes. NEVER use inputs[21], inputs[20], inputs[0] or any numeric socket index. Access sockets only by name. Color values MUST be 4-value RGBA tuples. Float values MUST be single floats. Create the camera BEFORE creating animation. Set scene.camera = camera. Create at least one light. Use scene.render.engine = 'BLENDER_EEVEE' exactly. NEVER use BLENDER_EEVEE_NEXT. Configure vertical video at 1080x1920, resolution percentage 100 and 24 FPS. Convert duration_target to frames. Set scene.frame_start = 1 and scene.frame_end = duration_target * scene.render.fps. Keep geometry and lighting simple enough for fast EEVEE rendering but prioritize appealing animated silhouettes and visual readability. Avoid simulations, particle systems, geometry nodes, compositing, volumetrics, cloth, smoke, fire, rigid body simulations and expensive modifiers. Prefer simple keyframe animation. Every animated object must already exist before keyframes are inserted. Use strong vertical composition. Keep important characters and actions inside the central safe area. Use deliberate close-ups, medium shots and wider establishing shots rather than one static camera for the entire video. Use camera movement when it improves storytelling. Characters should have readable poses and expressive animation. Avoid characters that look like rigid mannequins. Use simple facial features and body parts where practical. Avoid excessive geometric detail that slows rendering. The goal is appealing animated storytelling, not photorealism. Do NOT generate audio inside Blender. Do NOT depend on external audio files. Before saving, verify that scene.camera is not None. The script MUST save the Blender scene using bpy.ops.wm.save_as_mainfile(filepath='/tmp/diboo_story_scene.blend'). After saving, verify that the file exists using Python standard library os.path.exists. At the end print exactly these diagnostic messages: DIBOO BLENDER SCENE CREATED, STORY TITLE, TOTAL FRAMES, FPS, RESOLUTION, BLENDER SCENE READY. The script must not render anything itself. Return ONLY the JSON object. No Markdown. No code fences. No explanations."
+            "input": "You are the complete visual story, editing-plan and Blender procedural generation engine for Project_Diboo, an original animated short-form channel. Generate BOTH a complete structured production package and a complete Blender Python script in ONE response. The final result is an original animated YouTube Short / TikTok Short designed primarily through VISUAL STORYTELLING. There must be NO spoken narration, NO voice-over and NO subtitles. The viewer must understand the story from the animation itself, character actions, expressions, staging, camera work, visual cause-and-effect and sound design. The final video must feel like an actual animated short, NOT a collection of primitive 3D objects, NOT cardboard, NOT a basic Blender test, NOT a technical visualization and NOT an educational 3D demo. Use expressive characters, readable silhouettes, appealing proportions, strong posing, emotional beats, visual comedy or emotion, cinematic framing, deliberate camera movement, continuity between shots and a strong beginning-middle-ending structure. Do not imitate or copy any existing copyrighted animation, character, franchise or protected visual style. The visual language must remain original. Create a new original story for this generation. TARGET approximately 50 seconds and remain between 40 and 60 seconds. Use English only for metadata and scene descriptions. Use 24 FPS and vertical 1080x1920 composition. RETURN ONLY valid JSON with exactly these top-level fields: story and blender_script. The story object MUST contain exactly these fields: title, description, hashtags, duration_target, language, hook, visual_theme, music, scenes. duration_target MUST be a plain integer between 40 and 60. language MUST be en. hook MUST be a non-empty string describing the opening visual hook. visual_theme MUST be a non-empty object containing style, palette, lighting, animation and camera. music MUST be a non-empty object containing style, mood, intensity, instrumentation and timing. scenes MUST be a non-empty list. EVERY scene MUST contain: duration, description, camera, action, emotion, visual_transition, sfx, music. Scene duration MUST be a plain positive integer. The total scene duration should approximately equal duration_target. Do NOT create narration fields. Do NOT create subtitle fields. Do NOT create voice fields. The entire story must be understandable without dialogue or text. Characters must communicate through body language, facial expressions, eye direction, movement, timing and staging. Each scene should have a clear visual purpose. The opening scene must immediately establish a strong visual hook. The middle must escalate the situation or reveal new information. The final scenes must provide a clear payoff. Avoid random disconnected events. Maintain character identity, environment continuity and object continuity between scenes. The description must be suitable for the YouTube/TikTok post. Hashtags must be a list of relevant hashtags. Music must describe an original royalty-free ambient score that changes according to the emotional circumstance of the scene. Music must never depend on external music files. SFX must describe natural or cinematic sound effects that can later be synthesized procedurally. Prefer environmental sounds such as wind, leaves, water, birds, insects, footsteps, cloth movement, wood, soft impacts and natural ambience instead of repetitive beeps or electronic test tones. The Blender script MUST be a complete standalone Python script for Blender 4.0.2. The script MUST be conservative, deterministic and reliable. It MUST NOT depend on external files, addons, downloads, textures, fonts, images, sounds or network access. It MUST run correctly in Blender 4.0.2 background mode using blender -b --python blender_scene.py. The script MUST import bpy and math only unless another Python standard-library module is absolutely necessary. It MUST first clear the default scene using bpy.ops.object.select_all(action='SELECT') and bpy.ops.object.delete(use_global=False). Use stable Blender 4.0.2 operators. For planes ALWAYS use bpy.ops.mesh.primitive_plane_add. NEVER use bpy.ops.mesh.create_plane. Use cubes, spheres, cylinders, cones and planes only. Create materials using bpy.data.materials.new and diffuse_color whenever possible. If using nodes, NEVER access Principled BSDF inputs by numeric indexes. NEVER use inputs[21], inputs[20], inputs[0] or any numeric socket index. Access sockets only by name. Color values MUST be 4-value RGBA tuples. Float values MUST be single floats. Create the camera BEFORE creating animation. Set scene.camera = camera. Create at least one light. Use scene.render.engine = 'BLENDER_EEVEE' exactly. NEVER use BLENDER_EEVEE_NEXT. Configure vertical video at 1080x1920, resolution percentage 100 and 24 FPS. Convert duration_target to frames. Set scene.frame_start = 1 and scene.frame_end = duration_target * scene.render.fps. Keep geometry and lighting simple enough for fast EEVEE rendering but prioritize appealing animated silhouettes and visual readability. Avoid simulations, particle systems, geometry nodes, compositing, volumetrics, cloth, smoke, fire, rigid body simulations and expensive modifiers. Prefer simple keyframe animation. Every animated object must already exist before keyframes are inserted. Use strong vertical composition. Keep important characters and actions inside the central safe area. Use deliberate close-ups, medium shots and wider establishing shots rather than one static camera for the entire video. Use camera movement when it improves storytelling. Characters should have readable poses and expressive animation. Avoid characters that look like rigid mannequins. Use simple facial features and body parts where practical. Avoid excessive geometric detail that slows rendering. The goal is appealing animated storytelling, not photorealism. Do NOT generate audio inside Blender. Do NOT depend on external audio files. Before saving, verify that scene.camera is not None. The script MUST save the Blender scene using bpy.ops.wm.save_as_mainfile(filepath='/tmp/diboo_story_scene.blend'). After saving, verify that the file exists using Python standard library os.path.exists. At the end print exactly these diagnostic messages: DIBOO BLENDER SCENE CREATED, STORY TITLE, TOTAL FRAMES, FPS, RESOLUTION, BLENDER SCENE READY. The script must not render anything itself. Return ONLY the JSON object. No Markdown. No code fences. No explanations."
           }
           JSON
 
           python3 - <<'PY'
           import json
           from pathlib import Path
+
           p = Path("request.json")
-          data = json.loads(p.read_text(encoding="utf-8"))
-          assert data["model"] and data["input"]
-          p.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+          data = json.loads(
+              p.read_text(encoding="utf-8")
+          )
+
+          assert data["model"]
+          assert data["input"]
+
+          p.write_text(
+              json.dumps(
+                  data,
+                  ensure_ascii=False
+              ),
+              encoding="utf-8"
+          )
           PY
 
           SUCCESS=0
+
           for ATTEMPT in $(seq 1 "${GEMINI_MAX_ATTEMPTS}"); do
+
             echo "===== GEMINI ATTEMPT ${ATTEMPT}/${GEMINI_MAX_ATTEMPTS} ====="
 
             set +e
-            RESPONSE="$(curl -sS --connect-timeout 20 --max-time 180 \
-              -w '\n__HTTP_STATUS__:%{http_code}' \
-              -H "x-goog-api-key: ${GEMINI_API_KEY}" \
-              -H "Content-Type: application/json" \
-              -X POST \
-              "https://generativelanguage.googleapis.com/v1beta/interactions" \
-              -d @request.json)"
+
+            RESPONSE="$(
+              curl -sS \
+                --connect-timeout 20 \
+                --max-time 180 \
+                -w '\n__HTTP_STATUS__:%{http_code}' \
+                -H "x-goog-api-key: ${GEMINI_API_KEY}" \
+                -H "Content-Type: application/json" \
+                -X POST \
+                "https://generativelanguage.googleapis.com/v1beta/interactions" \
+                -d @request.json
+            )"
+
             CURL_EXIT=$?
+
             set -e
 
-            HTTP_STATUS="$(printf '%s\n' "${RESPONSE}" | sed -n 's/^__HTTP_STATUS__://p' | tail -n 1)"
-            BODY="$(printf '%s\n' "${RESPONSE}" | sed '/^__HTTP_STATUS__:/d')"
+            HTTP_STATUS="$(
+              printf '%s\n' "${RESPONSE}" |
+              sed -n 's/^__HTTP_STATUS__://p' |
+              tail -n 1
+            )"
+
+            BODY="$(
+              printf '%s\n' "${RESPONSE}" |
+              sed '/^__HTTP_STATUS__:/d'
+            )"
 
             printf '%s\n' "${BODY}" > gemini_response.json
 
-            if [ "${CURL_EXIT}" -eq 0 ] && [ "${HTTP_STATUS}" = "200" ]; then
+            if [[ "${CURL_EXIT}" -eq 0 && "${HTTP_STATUS}" == "200" ]]; then
+
               if python3 - <<'PY'
           import json
 
-          with open("gemini_response.json", encoding="utf-8") as f:
+          with open(
+              "gemini_response.json",
+              encoding="utf-8"
+          ) as f:
               x = json.load(f)
 
           raise SystemExit(
@@ -120,6 +179,7 @@ jobs:
                 SUCCESS=1
                 break
               fi
+
             fi
 
             echo "Gemini request failed."
@@ -130,28 +190,35 @@ jobs:
               '"code": ?(429|500|502|503|504)|"status": ?"UNAVAILABLE"|rate.?limit|temporarily unavailable' \
               gemini_response.json
             then
+
               sleep_seconds=$((ATTEMPT * ATTEMPT * 10))
+
               echo "Retryable Gemini error."
               echo "Sleeping ${sleep_seconds}s."
+
               sleep "${sleep_seconds}"
+
               continue
             fi
 
             cat gemini_response.json
             exit 1
+
           done
 
-          [ "${SUCCESS}" -eq 1 ] || {
+          if [[ "${SUCCESS}" -ne 1 ]]; then
             cat gemini_response.json
             exit 1
-          }
+          fi
 
           python3 - <<'PY'
           import json
           from pathlib import Path
 
           response = json.loads(
-              Path("gemini_response.json").read_text(
+              Path(
+                  "gemini_response.json"
+              ).read_text(
                   encoding="utf-8"
               )
           )
@@ -160,6 +227,7 @@ jobs:
 
           def walk(value):
               if isinstance(value, dict):
+
                   if (
                       value.get("type") == "text"
                       and isinstance(
@@ -167,12 +235,15 @@ jobs:
                           str
                       )
                   ):
-                      texts.append(value["text"])
+                      texts.append(
+                          value["text"]
+                      )
 
                   for v in value.values():
                       walk(v)
 
               elif isinstance(value, list):
+
                   for v in value:
                       walk(v)
 
@@ -206,6 +277,10 @@ jobs:
               "characters"
           )
           PY
+
+      # ============================================================
+      # PACKAGE VALIDATION
+      # ============================================================
 
       - name: Parse and validate generated package
         env:
@@ -245,7 +320,6 @@ jobs:
 
               try:
                   return json.loads(s)
-
               except json.JSONDecodeError:
                   pass
 
@@ -264,6 +338,7 @@ jobs:
                   start,
                   len(s)
               ):
+
                   ch = s[i]
 
                   if in_string:
@@ -318,17 +393,11 @@ jobs:
                   "blender_script"
               }:
                   raise RuntimeError(
-                      "Top-level fields must be exactly "
-                      "story and blender_script."
+                      "Top-level fields must be exactly story and blender_script."
                   )
 
-              story = generated[
-                  "story"
-              ]
-
-              script = generated[
-                  "blender_script"
-              ]
+              story = generated["story"]
+              script = generated["blender_script"]
 
               if not isinstance(
                   story,
@@ -361,10 +430,7 @@ jobs:
                   "scenes"
               }
 
-              missing = (
-                  required
-                  - set(story)
-              )
+              missing = required - set(story)
 
               if missing:
                   raise RuntimeError(
@@ -387,6 +453,7 @@ jobs:
                   duration,
                   str
               ):
+
                   m = re.fullmatch(
                       r"\s*(\d+)\s*",
                       duration
@@ -401,13 +468,10 @@ jobs:
                       m.group(1)
                   )
 
-              elif isinstance(
+              elif not isinstance(
                   duration,
                   int
               ):
-                  pass
-
-              else:
                   raise RuntimeError(
                       "duration_target must be an integer."
                   )
@@ -417,9 +481,7 @@ jobs:
                       f"duration_target {duration} is outside 40-60."
                   )
 
-              story[
-                  "duration_target"
-              ] = duration
+              story["duration_target"] = duration
 
               if str(
                   story["language"]
@@ -455,9 +517,7 @@ jobs:
                       "music must be an object."
                   )
 
-              scenes = story[
-                  "scenes"
-              ]
+              scenes = story["scenes"]
 
               if (
                   not isinstance(
@@ -497,8 +557,7 @@ jobs:
                       )
 
                   missing = (
-                      scene_fields
-                      - set(scene)
+                      scene_fields - set(scene)
                   )
 
                   if missing:
@@ -506,9 +565,7 @@ jobs:
                           f"Scene {idx} missing {sorted(missing)}"
                       )
 
-                  raw_d = scene[
-                      "duration"
-                  ]
+                  raw_d = scene["duration"]
 
                   if isinstance(
                       raw_d,
@@ -553,10 +610,7 @@ jobs:
                           f"Scene {idx} duration must be positive."
                       )
 
-                  scene[
-                      "duration"
-                  ] = d
-
+                  scene["duration"] = d
                   total += d
 
                   for forbidden in (
@@ -565,6 +619,7 @@ jobs:
                       "subtitle",
                       "subtitles"
                   ):
+
                       if forbidden in scene:
                           raise RuntimeError(
                               f"Scene {idx} contains forbidden field {forbidden}."
@@ -576,6 +631,7 @@ jobs:
                   "subtitle",
                   "subtitles"
               ):
+
                   if forbidden in story:
                       raise RuntimeError(
                           f"Story contains forbidden field {forbidden}."
@@ -585,20 +641,15 @@ jobs:
                   total - duration
               ) > 3:
                   raise RuntimeError(
-                      f"Scene total {total}s differs from "
-                      f"target {duration}s by more than 3s."
+                      f"Scene total {total}s differs from target {duration}s by more than 3s."
                   )
 
-              script = clean(
-                  script
-              )
+              script = clean(script)
 
               if script.startswith(
                   "python\n"
               ):
-                  script = script[
-                      7:
-                  ].lstrip()
+                  script = script[7:].lstrip()
 
               Path(
                   "story.json"
@@ -659,8 +710,7 @@ jobs:
               )
 
               print(
-                  f"PACKAGE_VALIDATION_FAILED: "
-                  f"{type(exc).__name__}: {exc}"
+                  f"PACKAGE_VALIDATION_FAILED: {type(exc).__name__}: {exc}"
               )
 
               sys.exit(10)
@@ -684,19 +734,13 @@ jobs:
 
             set -e
 
-            if [
-              "${VALIDATE_EXIT}" -eq 0
-            ]; then
+            if [[ "${VALIDATE_EXIT}" -eq 0 ]]; then
               break
             fi
 
-            if [
-              "${PACKAGE_REPAIR}" -ge \
-              "${MAX_PACKAGE_REPAIRS}"
-            ]; then
+            if [[ "${PACKAGE_REPAIR}" -ge "${MAX_PACKAGE_REPAIRS}" ]]; then
 
-              echo \
-                "Maximum Gemini package repairs reached."
+              echo "Maximum Gemini package repairs reached."
 
               cat \
                 /tmp/package_validation_error.txt \
@@ -705,17 +749,10 @@ jobs:
               exit 1
             fi
 
-            PACKAGE_REPAIR=$(
-              (
-                PACKAGE_REPAIR + 1
-              )
-            )
+            PACKAGE_REPAIR=$((PACKAGE_REPAIR + 1))
 
-            echo \
-              "Malformed/invalid Gemini package."
-
-            echo \
-              "Repair ${PACKAGE_REPAIR}/${MAX_PACKAGE_REPAIRS}"
+            echo "Malformed/invalid Gemini package."
+            echo "Repair ${PACKAGE_REPAIR}/${MAX_PACKAGE_REPAIRS}"
 
             python3 - <<'PY'
           import json
@@ -769,6 +806,7 @@ jobs:
           - never access material node inputs by numeric indexes
           - use named node sockets
           - use RGBA color tuples
+          - use numeric floats where required
           - create the camera before animation
           - set scene.camera
           - create at least one light
@@ -813,10 +851,8 @@ jobs:
                 --connect-timeout 20 \
                 --max-time 180 \
                 -w '\n__HTTP_STATUS__:%{http_code}' \
-                -H \
-                  "x-goog-api-key: ${GEMINI_API_KEY}" \
-                -H \
-                  "Content-Type: application/json" \
+                -H "x-goog-api-key: ${GEMINI_API_KEY}" \
+                -H "Content-Type: application/json" \
                 -X POST \
                 "https://generativelanguage.googleapis.com/v1beta/interactions" \
                 -d @package_repair_request.json
@@ -828,9 +864,7 @@ jobs:
 
             HTTP_STATUS="$(
               printf '%s\n' "${RESPONSE}" |
-              sed \
-                -n \
-                's/^__HTTP_STATUS__://p' |
+              sed -n 's/^__HTTP_STATUS__://p' |
               tail -n 1
             )"
 
@@ -842,17 +876,11 @@ jobs:
             printf '%s\n' "${BODY}" \
               > package_repair_response.json
 
-            if [
-              "${CURL_EXIT}" -ne 0
-            ] || [
-              "${HTTP_STATUS}" != "200"
-            ]; then
+            if [[ "${CURL_EXIT}" -ne 0 || "${HTTP_STATUS}" != "200" ]]; then
 
-              echo \
-                "Gemini package repair failed."
+              echo "Gemini package repair failed."
 
-              cat \
-                package_repair_response.json
+              cat package_repair_response.json
 
               exit 1
             fi
@@ -926,6 +954,10 @@ jobs:
             || echo \
               "Initial Blender syntax check failed; pre-execution repair stage will fix it."
 
+      # ============================================================
+      # BLENDER SYNTAX REPAIR
+      # ============================================================
+
       - name: Repair Blender script before execution
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -943,19 +975,14 @@ jobs:
               2> blender_scene/py_compile_error.log
             then
 
-              echo \
-                "BLENDER PYTHON SYNTAX: PASSED"
+              echo "BLENDER PYTHON SYNTAX: PASSED"
 
               break
             fi
 
-            if [
-              "${REPAIR}" -ge \
-              "${MAX_REPAIRS}"
-            ]; then
+            if [[ "${REPAIR}" -ge "${MAX_REPAIRS}" ]]; then
 
-              echo \
-                "Maximum pre-execution syntax repairs reached."
+              echo "Maximum pre-execution syntax repairs reached."
 
               cat \
                 blender_scene/py_compile_error.log
@@ -963,11 +990,7 @@ jobs:
               exit 1
             fi
 
-            REPAIR=$(
-              (
-                REPAIR + 1
-              )
-            )
+            REPAIR=$((REPAIR + 1))
 
             echo \
               "Pre-execution Blender repair ${REPAIR}/${MAX_REPAIRS}"
@@ -1010,7 +1033,7 @@ jobs:
           - never use numeric material-node input indexes
           - use named node sockets only
           - RGBA colors as 4-tuples
-          - numeric node values as floats
+          - numeric values as floats
           - create camera before animation
           - set scene.camera
           - at least one light
@@ -1058,10 +1081,8 @@ jobs:
                 --connect-timeout 20 \
                 --max-time 180 \
                 -w '\n__HTTP_STATUS__:%{http_code}' \
-                -H \
-                  "x-goog-api-key: ${GEMINI_API_KEY}" \
-                -H \
-                  "Content-Type: application/json" \
+                -H "x-goog-api-key: ${GEMINI_API_KEY}" \
+                -H "Content-Type: application/json" \
                 -X POST \
                 "https://generativelanguage.googleapis.com/v1beta/interactions" \
                 -d @repair_request.json
@@ -1073,9 +1094,7 @@ jobs:
 
             HTTP_STATUS="$(
               printf '%s\n' "${RESPONSE}" |
-              sed \
-                -n \
-                's/^__HTTP_STATUS__://p' |
+              sed -n 's/^__HTTP_STATUS__://p' |
               tail -n 1
             )"
 
@@ -1087,15 +1106,14 @@ jobs:
             printf '%s\n' "${BODY}" \
               > blender_scene/repair_response.json
 
-            [
-              "${CURL_EXIT}" -eq 0
-            ] && [
-              "${HTTP_STATUS}" = "200"
-            ] || {
+            if [[ "${CURL_EXIT}" -ne 0 || "${HTTP_STATUS}" != "200" ]]; then
+
               echo "Repair API failed."
+
               cat blender_scene/repair_response.json
+
               exit 1
-            }
+            fi
 
             python3 - <<'PY'
           import json
@@ -1151,21 +1169,13 @@ jobs:
                   "Repair response contained no text."
               )
 
-          if text.startswith(
-              "```python"
-          ):
-              text = text[
-                  len("```python"):
-              ]
+          if text.startswith("```python"):
+              text = text[len("```python"):]
 
-          elif text.startswith(
-              "```"
-          ):
+          elif text.startswith("```"):
               text = text[3:]
 
-          if text.rstrip().endswith(
-              "```"
-          ):
+          if text.rstrip().endswith("```"):
               text = text.rstrip()[:-3]
 
           text = text.strip()
@@ -1179,6 +1189,10 @@ jobs:
           PY
 
           done
+
+      # ============================================================
+      # BLENDER RUNTIME REPAIR
+      # ============================================================
 
       - name: Generate Blender scene with runtime auto-repair
         env:
@@ -1219,14 +1233,10 @@ jobs:
 
             set -e
 
-            if [
-              "${EXIT_CODE}" -eq 0
-            ] && [
-              -s /tmp/diboo_story_scene.blend
-            ]; then
+            if [[ "${EXIT_CODE}" -eq 0 ]] &&
+               [[ -s /tmp/diboo_story_scene.blend ]]; then
 
-              echo \
-                "DIBOO BLENDER SCENE READY"
+              echo "DIBOO BLENDER SCENE READY"
 
               ls -lh \
                 /tmp/diboo_story_scene.blend
@@ -1234,8 +1244,7 @@ jobs:
               break
             fi
 
-            echo \
-              "BLENDER FAILED."
+            echo "BLENDER FAILED."
 
             tail -n 180 \
               blender_scene/blender_run.log \
@@ -1245,10 +1254,7 @@ jobs:
               blender_scene/blender_run.log \
               blender_scene/blender_scene_error.log
 
-            if [
-              "${REPAIR}" -ge \
-              "${MAX_REPAIRS}"
-            ]; then
+            if [[ "${REPAIR}" -ge "${MAX_REPAIRS}" ]]; then
 
               echo \
                 "Maximum runtime Blender repairs reached."
@@ -1256,11 +1262,7 @@ jobs:
               exit 1
             fi
 
-            REPAIR=$(
-              (
-                REPAIR + 1
-              )
-            )
+            REPAIR=$((REPAIR + 1))
 
             python3 - <<'PY'
           import json
@@ -1351,10 +1353,8 @@ jobs:
                 --connect-timeout 20 \
                 --max-time 180 \
                 -w '\n__HTTP_STATUS__:%{http_code}' \
-                -H \
-                  "x-goog-api-key: ${GEMINI_API_KEY}" \
-                -H \
-                  "Content-Type: application/json" \
+                -H "x-goog-api-key: ${GEMINI_API_KEY}" \
+                -H "Content-Type: application/json" \
                 -X POST \
                 "https://generativelanguage.googleapis.com/v1beta/interactions" \
                 -d @repair_request.json
@@ -1366,9 +1366,7 @@ jobs:
 
             HTTP_STATUS="$(
               printf '%s\n' "${RESPONSE}" |
-              sed \
-                -n \
-                's/^__HTTP_STATUS__://p' |
+              sed -n 's/^__HTTP_STATUS__://p' |
               tail -n 1
             )"
 
@@ -1380,11 +1378,7 @@ jobs:
             printf '%s\n' "${BODY}" \
               > blender_scene/repair_response.json
 
-            if [
-              "${CURL_EXIT}" -ne 0
-            ] || [
-              "${HTTP_STATUS}" != "200"
-            ]; then
+            if [[ "${CURL_EXIT}" -ne 0 || "${HTTP_STATUS}" != "200" ]]; then
 
               cat \
                 blender_scene/repair_response.json
@@ -1446,21 +1440,13 @@ jobs:
                   "Gemini repair response contained no text."
               )
 
-          if text.startswith(
-              "```python"
-          ):
-              text = text[
-                  len("```python"):
-              ]
+          if text.startswith("```python"):
+              text = text[len("```python"):]
 
-          elif text.startswith(
-              "```"
-          ):
+          elif text.startswith("```"):
               text = text[3:]
 
-          if text.rstrip().endswith(
-              "```"
-          ):
+          if text.rstrip().endswith("```"):
               text = text.rstrip()[:-3]
 
           Path(
@@ -1476,6 +1462,10 @@ jobs:
 
           done
 
+      # ============================================================
+      # CONFIGURE RENDER
+      # ============================================================
+
       - name: Configure render
         shell: bash
         run: |
@@ -1485,11 +1475,7 @@ jobs:
             cat /tmp/diboo_duration.txt
           )"
 
-          END_FRAME=$(
-            (
-              DURATION * 24
-            )
-          )
+          END_FRAME=$((DURATION * 24))
 
           cat > blender_scene/configure_render.py <<'PY'
           import bpy
@@ -1506,8 +1492,7 @@ jobs:
 
           scene = bpy.context.scene
 
-          scene.render.engine = \
-              "BLENDER_EEVEE"
+          scene.render.engine = "BLENDER_EEVEE"
 
           scene.render.resolution_x = 1080
           scene.render.resolution_y = 1920
@@ -1516,11 +1501,12 @@ jobs:
           scene.render.fps = 24
 
           scene.frame_start = 1
-          scene.frame_end = \
-              duration * scene.render.fps
+          scene.frame_end = (
+              duration *
+              scene.render.fps
+          )
 
-          scene.render.image_settings.file_format = \
-              "PNG"
+          scene.render.image_settings.file_format = "PNG"
 
           if scene.camera is None:
               raise RuntimeError(
@@ -1531,13 +1517,13 @@ jobs:
               scene,
               "eevee"
           ):
+
               try:
                   scene.eevee.taa_render_samples = 8
               except Exception:
                   pass
 
-          path = \
-              "/tmp/diboo_story_scene.blend"
+          path = "/tmp/diboo_story_scene.blend"
 
           bpy.ops.wm.save_as_mainfile(
               filepath=path
@@ -1581,6 +1567,10 @@ jobs:
           test -s \
             /tmp/diboo_story_scene.blend
 
+      # ============================================================
+      # RENDER
+      # ============================================================
+
       - name: Render complete animation
         shell: bash
         run: |
@@ -1590,12 +1580,7 @@ jobs:
             cat /tmp/diboo_duration.txt
           )"
 
-          END_FRAME=$(
-            (
-              DURATION * 24
-            )
-          )
-
+          END_FRAME=$((DURATION * 24))
           EXPECTED_FRAMES="${END_FRAME}"
 
           rm -rf \
@@ -1639,35 +1624,32 @@ jobs:
               wc -l
             )"
 
-            if [
-              "${EXIT_CODE}" -eq 0
-            ] && [
-              "${FRAME_COUNT}" -eq \
-              "${EXPECTED_FRAMES}"
-            ]; then
+            if [[ "${EXIT_CODE}" -eq 0 ]] &&
+               [[ "${FRAME_COUNT}" -eq "${EXPECTED_FRAMES}" ]]; then
 
               RENDER_OK=1
               break
             fi
 
-            echo \
-              "Render attempt failed."
-
-            echo \
-              "exit=${EXIT_CODE}"
-
+            echo "Render attempt failed."
+            echo "exit=${EXIT_CODE}"
             echo \
               "frames=${FRAME_COUNT}/${EXPECTED_FRAMES}"
 
             sleep 5
+
           done
 
-          [
-            "${RENDER_OK}" -eq 1
-          ] || exit 1
+          if [[ "${RENDER_OK}" -ne 1 ]]; then
+            exit 1
+          fi
 
           echo \
             "DIBOO FULL ANIMATION RENDER: PASSED"
+
+      # ============================================================
+      # VERIFY FRAMES
+      # ============================================================
 
       - name: Verify render integrity
         shell: bash
@@ -1678,11 +1660,7 @@ jobs:
             cat /tmp/diboo_duration.txt
           )"
 
-          EXPECTED_FRAMES=$(
-            (
-              DURATION * 24
-            )
-          )
+          EXPECTED_FRAMES=$((DURATION * 24))
 
           FRAME_COUNT="$(
             find \
@@ -1693,10 +1671,11 @@ jobs:
             wc -l
           )"
 
-          [
-            "${FRAME_COUNT}" -eq \
-            "${EXPECTED_FRAMES}"
-          ]
+          if [[ "${FRAME_COUNT}" -ne "${EXPECTED_FRAMES}" ]]; then
+            echo \
+              "Frame count mismatch: ${FRAME_COUNT}/${EXPECTED_FRAMES}"
+            exit 1
+          fi
 
           FIRST="$(
             find \
@@ -1733,7 +1712,11 @@ jobs:
           du -sh \
             /tmp/diboo_render
 
-      - name: Create ambient audio
+      # ============================================================
+      # NATURAL PROCEDURAL AUDIO
+      # ============================================================
+
+      - name: Create natural ambient audio
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -1761,82 +1744,110 @@ jobs:
               )
           )
 
-          scenes = story[
-              "scenes"
-          ]
+          scenes = story["scenes"]
 
-          for index, scene in enumerate(
-              scenes,
-              1
-          ):
-
-              duration = int(
-                  scene["duration"]
+          def run_ffmpeg(args):
+              subprocess.run(
+                  args,
+                  check=True
               )
 
-              music = str(
-                  scene.get(
-                      "music",
-                      {}
-                  )
+          def make_scene_audio(index, scene):
+
+              duration = max(
+                  1,
+                  int(scene["duration"])
+              )
+
+              music_text = str(
+                  scene.get("music", "")
               ).lower()
 
+              sfx_text = str(
+                  scene.get("sfx", "")
+              ).lower()
+
+              emotion_text = str(
+                  scene.get("emotion", "")
+              ).lower()
+
+              combined = (
+                  music_text +
+                  " " +
+                  sfx_text +
+                  " " +
+                  emotion_text
+              )
+
+              # --------------------------------------------------
+              # MUSIC CHARACTER
+              # --------------------------------------------------
+
               if any(
-                  w in music
-                  for w in (
+                  word in combined
+                  for word in (
                       "sad",
                       "lonely",
-                      "emotional",
-                      "melancholy"
+                      "melancholy",
+                      "grief",
+                      "emotional"
                   )
               ):
-                  freqs = \
-                      "196+246.94+293.66"
+                  base1 = "174.61"
+                  base2 = "220.00"
+                  base3 = "261.63"
 
               elif any(
-                  w in music
-                  for w in (
+                  word in combined
+                  for word in (
                       "tension",
                       "danger",
                       "fear",
-                      "suspense"
+                      "suspense",
+                      "mystery"
                   )
               ):
-                  freqs = \
-                      "164.81+207.65+246.94"
+                  base1 = "146.83"
+                  base2 = "174.61"
+                  base3 = "220.00"
 
               elif any(
-                  w in music
-                  for w in (
+                  word in combined
+                  for word in (
                       "happy",
                       "joy",
                       "playful",
                       "fun",
-                      "cute"
+                      "cute",
+                      "wonder"
                   )
               ):
-                  freqs = \
-                      "261.63+329.63+392.00"
+                  base1 = "261.63"
+                  base2 = "329.63"
+                  base3 = "392.00"
 
               else:
-                  freqs = \
-                      "220+277.18+329.63"
+                  base1 = "196.00"
+                  base2 = "246.94"
+                  base3 = "293.66"
 
-              expr = (
-                  "0.025*sin("
-                  "2*PI*("
-                  f"{freqs}"
-                  ")/3*t)"
-                  "+0.012*sin("
-                  "2*PI*110*t)"
+              # --------------------------------------------------
+              # SOFT AMBIENT MUSIC PAD
+              # --------------------------------------------------
+
+              music_expr = (
+                  f"0.018*sin(2*PI*{base1}*t)"
+                  f"+0.014*sin(2*PI*{base2}*t)"
+                  f"+0.010*sin(2*PI*{base3}*t)"
+                  f"+0.006*sin(2*PI*55*t)"
               )
 
-              out = Path(
+              music_path = Path(
                   f"/tmp/diboo_audio/"
                   f"scene_{index:02d}_music.wav"
               )
 
-              subprocess.run(
+              run_ffmpeg(
                   [
                       "ffmpeg",
                       "-y",
@@ -1844,7 +1855,7 @@ jobs:
                       "lavfi",
                       "-i",
                       (
-                          f"aevalsrc={expr}:"
+                          f"aevalsrc={music_expr}:"
                           f"s=48000:"
                           f"d={duration}"
                       ),
@@ -1852,14 +1863,366 @@ jobs:
                       "48000",
                       "-ac",
                       "2",
-                      str(out)
-                  ],
-                  check=True
+                      str(music_path)
+                  ]
+              )
+
+              # --------------------------------------------------
+              # NATURAL WIND / AIR BED
+              # --------------------------------------------------
+
+              wind_path = Path(
+                  f"/tmp/diboo_audio/"
+                  f"scene_{index:02d}_wind.wav"
+              )
+
+              wind_filter = (
+                  "anoisesrc="
+                  "color=pink:"
+                  "amplitude=0.10:"
+                  f"d={duration},"
+                  "lowpass=f=1200,"
+                  "highpass=f=80,"
+                  "tremolo=f=0.08:d=0.65,"
+                  "volume=0.55"
+              )
+
+              run_ffmpeg(
+                  [
+                      "ffmpeg",
+                      "-y",
+                      "-f",
+                      "lavfi",
+                      "-i",
+                      wind_filter,
+                      "-ar",
+                      "48000",
+                      "-ac",
+                      "2",
+                      str(wind_path)
+                  ]
+              )
+
+              # --------------------------------------------------
+              # WATER / STREAM TEXTURE
+              # --------------------------------------------------
+
+              water_path = Path(
+                  f"/tmp/diboo_audio/"
+                  f"scene_{index:02d}_water.wav"
+              )
+
+              water_filter = (
+                  "anoisesrc="
+                  "color=brown:"
+                  "amplitude=0.08:"
+                  f"d={duration},"
+                  "highpass=f=500,"
+                  "lowpass=f=5000,"
+                  "volume=0.45"
+              )
+
+              run_ffmpeg(
+                  [
+                      "ffmpeg",
+                      "-y",
+                      "-f",
+                      "lavfi",
+                      "-i",
+                      water_filter,
+                      "-ar",
+                      "48000",
+                      "-ac",
+                      "2",
+                      str(water_path)
+                  ]
+              )
+
+              # --------------------------------------------------
+              # LEAF / FOREST TEXTURE
+              # --------------------------------------------------
+
+              leaf_path = Path(
+                  f"/tmp/diboo_audio/"
+                  f"scene_{index:02d}_leaves.wav"
+              )
+
+              leaf_filter = (
+                  "anoisesrc="
+                  "color=white:"
+                  "amplitude=0.045:"
+                  f"d={duration},"
+                  "highpass=f=1800,"
+                  "lowpass=f=7000,"
+                  "tremolo=f=0.7:d=0.85,"
+                  "volume=0.45"
+              )
+
+              run_ffmpeg(
+                  [
+                      "ffmpeg",
+                      "-y",
+                      "-f",
+                      "lavfi",
+                      "-i",
+                      leaf_filter,
+                      "-ar",
+                      "48000",
+                      "-ac",
+                      "2",
+                      str(leaf_path)
+                  ]
+              )
+
+              # --------------------------------------------------
+              # BIRD-LIKE CHIRPS
+              # --------------------------------------------------
+
+              bird_path = Path(
+                  f"/tmp/diboo_audio/"
+                  f"scene_{index:02d}_birds.wav"
+              )
+
+              chirp_expr = (
+                  "0.0"
+              )
+
+              chirps = [
+                  2.7,
+                  8.9,
+                  16.4,
+                  25.1,
+                  34.8,
+                  43.2
+              ]
+
+              usable = [
+                  t
+                  for t in chirps
+                  if t < duration - 0.3
+              ]
+
+              bird_parts = []
+
+              for t in usable:
+
+                  local = (
+                      f"(if("
+                      f"gt(t,{t}),"
+                      f"if(lt(t,{t + 0.32}),"
+                      f"0.025*sin("
+                      f"2*PI*("
+                      f"2100+900*(t-{t})/"
+                      f"0.32"
+                      f")*t)"
+                      f",0),0))"
+                  )
+
+                  bird_parts.append(
+                      local
+                  )
+
+              if bird_parts:
+                  chirp_expr = "+".join(
+                      bird_parts
+                  )
+
+              run_ffmpeg(
+                  [
+                      "ffmpeg",
+                      "-y",
+                      "-f",
+                      "lavfi",
+                      "-i",
+                      (
+                          f"aevalsrc={chirp_expr}:"
+                          f"s=48000:"
+                          f"d={duration}"
+                      ),
+                      "-ar",
+                      "48000",
+                      "-ac",
+                      "2",
+                      str(bird_path)
+                  ]
+              )
+
+              # --------------------------------------------------
+              # SFX EVENTS
+              # --------------------------------------------------
+
+              sfx_path = Path(
+                  f"/tmp/diboo_audio/"
+                  f"scene_{index:02d}_sfx.wav"
+              )
+
+              sfx_expr = "0.0"
+
+              # Soft footstep / movement texture.
+              if any(
+                  word in sfx_text
+                  for word in (
+                      "step",
+                      "foot",
+                      "walk",
+                      "run",
+                      "running"
+                  )
+              ):
+
+                  step_times = [
+                      0.45,
+                      1.05,
+                      1.65,
+                      2.25,
+                      2.85,
+                      3.45
+                  ]
+
+                  parts = []
+
+                  for t in step_times:
+
+                      if t >= duration:
+                          continue
+
+                      parts.append(
+                          "("
+                          f"if(gt(t,{t}),"
+                          f"if(lt(t,{t+0.09}),"
+                          "0.035*"
+                          "exp(-45*(t-"
+                          f"{t}"
+                          "))*"
+                          "sin(2*PI*95*t),"
+                          "0),0)"
+                          ")"
+                      )
+
+                  if parts:
+                      sfx_expr = "+".join(parts)
+
+              # Soft impact / object movement.
+              elif any(
+                  word in sfx_text
+                  for word in (
+                      "impact",
+                      "hit",
+                      "fall",
+                      "thump",
+                      "bump",
+                      "drop"
+                  )
+              ):
+
+                  sfx_expr = (
+                      "if(gt(t,0.55),"
+                      "0.045*exp(-9*(t-0.55))*"
+                      "sin(2*PI*75*t),0)"
+                  )
+
+              # Rustle / movement in vegetation.
+              elif any(
+                  word in sfx_text
+                  for word in (
+                      "rustle",
+                      "leaves",
+                      "leaf",
+                      "grass",
+                      "bush"
+                  )
+              ):
+
+                  sfx_expr = (
+                      "0.025*sin(2*PI*180*t)"
+                      "*abs(sin(2*PI*2.5*t))"
+                  )
+
+              run_ffmpeg(
+                  [
+                      "ffmpeg",
+                      "-y",
+                      "-f",
+                      "lavfi",
+                      "-i",
+                      (
+                          f"aevalsrc={sfx_expr}:"
+                          f"s=48000:"
+                          f"d={duration}"
+                      ),
+                      "-ar",
+                      "48000",
+                      "-ac",
+                      "2",
+                      str(sfx_path)
+                  ]
+              )
+
+              # --------------------------------------------------
+              # SCENE MIX
+              # --------------------------------------------------
+
+              scene_mix = Path(
+                  f"/tmp/diboo_audio/"
+                  f"scene_{index:02d}.wav"
+              )
+
+              # Always-present natural atmosphere.
+              # Extra layers are kept subtle so they do not
+              # overpower the music or storytelling.
+
+              filter_complex = (
+                  "[0:a]volume=0.24[music];"
+                  "[1:a]volume=0.14[wind];"
+                  "[2:a]volume=0.10[water];"
+                  "[3:a]volume=0.08[leaves];"
+                  "[4:a]volume=0.045[birds];"
+                  "[5:a]volume=0.16[sfx];"
+                  "[music][wind][water][leaves][birds][sfx]"
+                  "amix=inputs=6:"
+                  "duration=longest:"
+                  "dropout_transition=2,"
+                  "loudnorm=I=-20:TP=-2:LRA=10"
+              )
+
+              run_ffmpeg(
+                  [
+                      "ffmpeg",
+                      "-y",
+                      "-i",
+                      str(music_path),
+                      "-i",
+                      str(wind_path),
+                      "-i",
+                      str(water_path),
+                      "-i",
+                      str(leaf_path),
+                      "-i",
+                      str(bird_path),
+                      "-i",
+                      str(sfx_path),
+                      "-filter_complex",
+                      filter_complex,
+                      "-ar",
+                      "48000",
+                      "-ac",
+                      "2",
+                      str(scene_mix)
+                  ]
+              )
+
+          for index, scene in enumerate(
+              scenes,
+              1
+          ):
+              make_scene_audio(
+                  index,
+                  scene
               )
 
           concat = Path(
               "/tmp/diboo_audio/"
-              "music_concat.txt"
+              "audio_concat.txt"
           )
 
           concat.write_text(
@@ -1867,7 +2230,7 @@ jobs:
                   (
                       f"file "
                       f"'/tmp/diboo_audio/"
-                      f"scene_{i:02d}_music.wav'\n"
+                      f"scene_{i:02d}.wav'\n"
                   )
                   for i in range(
                       1,
@@ -1891,7 +2254,7 @@ jobs:
                   "48000",
                   "-ac",
                   "2",
-                  "/tmp/diboo_audio/music.wav"
+                  "/tmp/diboo_audio/ambient_master.wav"
               ],
               check=True
           )
@@ -1899,31 +2262,23 @@ jobs:
 
           ffmpeg \
             -y \
-            -f lavfi \
             -i \
-            "aevalsrc=0.035*sin(2*PI*(600-450*t)*t)*exp(-4*t):s=48000:d=0.8" \
-            -ar 48000 \
-            -ac 2 \
-            /tmp/diboo_audio/sfx.wav
-
-          ffmpeg \
-            -y \
-            -i \
-            /tmp/diboo_audio/music.wav \
-            -i \
-            /tmp/diboo_audio/sfx.wav \
-            -filter_complex \
-            "[0:a]volume=0.22[m];[1:a]volume=0.10,aloop=loop=-1:size=38400[s];[m][s]amix=inputs=2:duration=first:dropout_transition=2,loudnorm=I=-18:TP=-2:LRA=11[out]" \
-            -map "[out]" \
-            -t "${DURATION}" \
-            -ar 48000 \
-            -ac 2 \
+            /tmp/diboo_audio/ambient_master.wav \
             -c:a aac \
             -b:a 128k \
+            -ar 48000 \
+            -ac 2 \
             /tmp/diboo_audio_track.m4a
 
           test -s \
             /tmp/diboo_audio_track.m4a
+
+          echo \
+            "DIBOO NATURAL AMBIENT AUDIO: PASSED"
+
+      # ============================================================
+      # VISUAL-ONLY STORY VALIDATION
+      # ============================================================
 
       - name: Verify visual-only production mode
         shell: bash
@@ -1965,14 +2320,17 @@ jobs:
 
                   if key in scene:
                       raise RuntimeError(
-                          f"Forbidden scene field "
-                          f"{key} in scene {i}"
+                          f"Forbidden scene field {key} in scene {i}"
                       )
 
           print(
               "DIBOO VISUAL-ONLY MODE: PASSED"
           )
           PY
+
+      # ============================================================
+      # ENCODE MP4
+      # ============================================================
 
       - name: Encode final MP4
         shell: bash
@@ -1983,9 +2341,7 @@ jobs:
             cat /tmp/diboo_duration.txt
           )"
 
-          VIDEO_NAME=\
-            "Project_Diboo_Video_${VIDEO_NUMBER}"
-
+          VIDEO_NAME="Project_Diboo_Video_${VIDEO_NUMBER}"
           MP4="/tmp/${VIDEO_NAME}.mp4"
 
           rm -f \
@@ -2021,13 +2377,16 @@ jobs:
           ls -lh \
             "${MP4}"
 
+      # ============================================================
+      # VERIFY MP4
+      # ============================================================
+
       - name: Verify final MP4
         shell: bash
         run: |
           set -Eeuo pipefail
 
-          MP4=\
-            "/tmp/Project_Diboo_Video_${VIDEO_NUMBER}.mp4"
+          MP4="/tmp/Project_Diboo_Video_${VIDEO_NUMBER}.mp4"
 
           test -s \
             "${MP4}"
@@ -2066,13 +2425,13 @@ jobs:
             wc -l
           )"
 
-          [
-            "${VIDEO_STREAMS}" -ge 1
-          ]
+          if [[ "${VIDEO_STREAMS}" -lt 1 ]]; then
+            exit 1
+          fi
 
-          [
-            "${AUDIO_STREAMS}" -ge 1
-          ]
+          if [[ "${AUDIO_STREAMS}" -lt 1 ]]; then
+            exit 1
+          fi
 
           WIDTH_ACTUAL="$(
             ffprobe \
@@ -2092,16 +2451,20 @@ jobs:
               "${MP4}"
           )"
 
-          [
-            "${WIDTH_ACTUAL}" = "1080"
-          ]
+          if [[ "${WIDTH_ACTUAL}" != "1080" ]]; then
+            exit 1
+          fi
 
-          [
-            "${HEIGHT_ACTUAL}" = "1920"
-          ]
+          if [[ "${HEIGHT_ACTUAL}" != "1920" ]]; then
+            exit 1
+          fi
 
           echo \
             "DIBOO FINAL MP4: PASSED"
+
+      # ============================================================
+      # TELEGRAM
+      # ============================================================
 
       - name: Send Project_Diboo video to Telegram
         env:
@@ -2117,8 +2480,7 @@ jobs:
           test -n \
             "${TELEGRAM_CHAT_ID}"
 
-          ORIGINAL=\
-            "/tmp/Project_Diboo_Video_${VIDEO_NUMBER}.mp4"
+          ORIGINAL="/tmp/Project_Diboo_Video_${VIDEO_NUMBER}.mp4"
 
           SEND_FILE="${ORIGINAL}"
 
@@ -2194,9 +2556,7 @@ jobs:
               "${ORIGINAL}"
           )"
 
-          if [
-            "${SIZE}" -gt 52400000
-          ]; then
+          if [[ "${SIZE}" -gt 52400000 ]]; then
 
             echo \
               "Original exceeds safe Telegram size; creating delivery copy."
@@ -2246,19 +2606,13 @@ jobs:
               -preset fast \
               -b:v "${TARGET_KBPS}k" \
               -maxrate "${TARGET_KBPS}k" \
-              -bufsize \
-                "$(
-                  (
-                    TARGET_KBPS * 2
-                  )
-                )k" \
+              -bufsize "$((TARGET_KBPS * 2))k" \
               -c:a aac \
               -b:a 96k \
               -movflags +faststart \
               /tmp/telegram_delivery.mp4
 
-            SEND_FILE=\
-              "/tmp/telegram_delivery.mp4"
+            SEND_FILE="/tmp/telegram_delivery.mp4"
           fi
 
           FINAL_SIZE="$(
@@ -2269,9 +2623,7 @@ jobs:
           echo \
             "Telegram file size: ${FINAL_SIZE} bytes"
 
-          if [
-            "${FINAL_SIZE}" -gt 52428800
-          ]; then
+          if [[ "${FINAL_SIZE}" -gt 52428800 ]]; then
 
             echo \
               "Telegram delivery copy is still too large."
@@ -2315,35 +2667,33 @@ jobs:
             echo \
               "${RESPONSE}"
 
-            if [
-              "${EXIT_CODE}" -eq 0
-            ] && printf '%s' \
-              "${RESPONSE}" |
-              grep -q '"ok":true'
+            if [[ "${EXIT_CODE}" -eq 0 ]] &&
+               printf '%s' "${RESPONSE}" |
+               grep -q '"ok":true'
             then
 
               SUCCESS=1
               break
             fi
 
-            sleep \
-              $(
-                (
-                  ATTEMPT * 5
-                )
-              )
+            sleep $((ATTEMPT * 5))
+
           done
 
-          [
-            "${SUCCESS}" -eq 1
-          ] || {
+          if [[ "${SUCCESS}" -ne 1 ]]; then
+
             echo \
               "Telegram delivery failed."
+
             exit 1
-          }
+          fi
 
           echo \
             "DIBOO TELEGRAM VIDEO ${VIDEO_NUMBER}: PASSED"
+
+      # ============================================================
+      # ARTIFACT
+      # ============================================================
 
       - name: Upload MP4 artifact
         uses: actions/upload-artifact@v4
@@ -2371,6 +2721,10 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      # ============================================================
+      # FINAL TEST
+      # ============================================================
+
       - name: Final Project_Diboo test
         shell: bash
         run: |
@@ -2380,14 +2734,9 @@ jobs:
             cat /tmp/diboo_duration.txt
           )"
 
-          FRAMES=$(
-            (
-              DURATION * 24
-            )
-          )
+          FRAMES=$((DURATION * 24))
 
-          MP4=\
-            "/tmp/Project_Diboo_Video_${VIDEO_NUMBER}.mp4"
+          MP4="/tmp/Project_Diboo_Video_${VIDEO_NUMBER}.mp4"
 
           test -s \
             "${MP4}"
@@ -2416,13 +2765,16 @@ jobs:
             "Engine: EEVEE"
 
           echo \
-            "Audio: Ambient music + procedural SFX"
+            "Audio: Natural ambient + procedural SFX"
 
           echo \
             "Voice: OFF"
 
           echo \
             "Subtitles: OFF"
+
+          echo \
+            "Visual references: NOT YET ENABLED"
 
           echo \
             "Telegram: PASSED"
