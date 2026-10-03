@@ -30,7 +30,7 @@ jobs:
           cat > request.json <<'JSON'
           {
             "model": "gemini-3.5-flash-lite",
-            "input": "You are the story and Blender procedural generation engine for Project_Diboo. Generate BOTH a structured story and a complete Blender Python script in ONE response. The story is for an original 3D cartoon YouTube Short. It must be highly visual and understandable without audio. Use simple objects, animals, vehicles, machines, or simple characters. Do not copy copyrighted characters, franchises, companies, or protected visual styles. Target approximately 50 seconds and remain between 40 and 60 seconds. Narration language must be English. Story structure: HOOK 0-5 seconds, SITUATION 5-12 seconds, PROBLEM 12-25 seconds, ACTION 25-40 seconds, RESOLUTION 40-50 seconds, PAYOFF 50-55 seconds. Create strong visual storytelling, clear cause and effect, dynamic camera movements, and SFX suggestions. Return ONLY valid JSON with exactly these top-level fields: story and blender_script. The story object MUST contain exactly: title, duration_target, language, hook, narration, scenes. duration_target MUST be a plain integer. language MUST be en. Every scene MUST contain: duration, description, camera, action, sfx. Scene duration MUST be a plain integer. The blender_script field MUST contain a complete standalone Python script for Blender 4.0.2. The script MUST be conservative, deterministic and reliable. It MUST NOT depend on external files, addons, downloads, textures, fonts, images, sounds or network access. It MUST run correctly in Blender 4.0.2 background mode using: blender -b --python blender_scene.py. The script MUST import bpy and math only unless another Python standard-library module is absolutely necessary. It MUST first clear the default scene using bpy.ops.object.select_all(action='SELECT') and bpy.ops.object.delete(use_global=False). Use only stable Blender 4.0.2 operators. For planes ALWAYS use bpy.ops.mesh.primitive_plane_add. NEVER use bpy.ops.mesh.create_plane. Use cubes, spheres, cylinders, cones and planes only. Create materials using bpy.data.materials.new and diffuse_color whenever possible. If using nodes, NEVER access Principled BSDF inputs by numeric indexes. NEVER use inputs[21], inputs[20], inputs[0] or any numeric socket index. Access sockets only by name using node.inputs.get('Base Color'), node.inputs.get('Roughness'), node.inputs.get('Metallic'), node.inputs.get('Specular IOR Level'), node.inputs.get('Alpha'), etc. Color values MUST be 4-value RGBA tuples. Float values MUST be single floats. Create the camera BEFORE creating animation. Set scene.camera = camera. Create at least one light. Use scene.render.engine = 'BLENDER_EEVEE' exactly. NEVER use BLENDER_EEVEE_NEXT. Configure vertical video at 1080x1920, resolution percentage 100 and 24 FPS. Convert duration_target to frames. Set scene.frame_start = 1 and scene.frame_end = duration_target * scene.render.fps. Keep geometry and lighting simple for fast EEVEE rendering. Avoid simulations, particle systems, geometry nodes, compositing, volumetrics, cloth, smoke, fire, rigid body simulations and expensive modifiers. Prefer simple keyframe animation. Every animated object must already exist before keyframes are inserted. Before saving, verify that scene.camera is not None. The script MUST save the Blender scene using bpy.ops.wm.save_as_mainfile(filepath='/tmp/diboo_story_scene.blend'). After saving, verify that the file exists using Python standard library os.path.exists. At the end print exactly these diagnostic messages: DIBOO BLENDER SCENE CREATED, STORY TITLE, TOTAL FRAMES, FPS, RESOLUTION, BLENDER SCENE READY. The script must not render anything itself. Return ONLY the JSON object. No Markdown. No code fences. No explanations."
+            "input": "You are the story and Blender procedural generation engine for Project_Diboo. Generate BOTH a structured story and a complete Blender Python script in ONE response. The story is for an original 3D cartoon YouTube Short. It must be highly visual and understandable without audio. Use simple objects, animals, vehicles, machines, or simple characters. Do not copy copyrighted characters, franchises, companies, or protected visual styles. Target approximately 50 seconds and remain between 40 and 60 seconds. Narration language must be English. Story structure: HOOK 0-5 seconds, SITUATION 5-12 seconds, PROBLEM 12-25 seconds, ACTION 25-40 seconds, RESOLUTION 40-50 seconds, PAYOFF 50-55 seconds. Create strong visual storytelling, clear cause and effect, dynamic camera movements, and SFX suggestions. The narration MUST be suitable for a short cartoon voiceover and should naturally cover the full story. Every scene should contain useful SFX suggestions. Return ONLY valid JSON with exactly these top-level fields: story and blender_script. The story object MUST contain exactly: title, duration_target, language, hook, narration, scenes. duration_target MUST be a plain integer. language MUST be en. narration MUST be a plain English string suitable for voice narration. Every scene MUST contain: duration, description, camera, action, sfx. Scene duration MUST be a plain integer. The blender_script field MUST contain a complete standalone Python script for Blender 4.0.2. The script MUST be conservative, deterministic and reliable. It MUST NOT depend on external files, addons, downloads, textures, fonts, images, sounds or network access. It MUST run correctly in Blender 4.0.2 background mode using: blender -b --python blender_scene.py. The script MUST import bpy and math only unless another Python standard-library module is absolutely necessary. It MUST first clear the default scene using bpy.ops.object.select_all(action='SELECT') and bpy.ops.object.delete(use_global=False). Use only stable Blender 4.0.2 operators. For planes ALWAYS use bpy.ops.mesh.primitive_plane_add. NEVER use bpy.ops.mesh.create_plane. Use cubes, spheres, cylinders, cones and planes only. Create materials using bpy.data.materials.new and diffuse_color whenever possible. If using nodes, NEVER access Principled BSDF inputs by numeric indexes. NEVER use inputs[21], inputs[20], inputs[0] or any numeric socket index. Access sockets only by name using node.inputs.get('Base Color'), node.inputs.get('Roughness'), node.inputs.get('Metallic'), node.inputs.get('Specular IOR Level'), node.inputs.get('Alpha'), etc. Color values MUST be 4-value RGBA tuples. Float values MUST be single floats. Create the camera BEFORE creating animation. Set scene.camera = camera. Create at least one light. Use scene.render.engine = 'BLENDER_EEVEE' exactly. NEVER use BLENDER_EEVEE_NEXT. Configure vertical video at 1080x1920, resolution percentage 100 and 24 FPS. Convert duration_target to frames. Set scene.frame_start = 1 and scene.frame_end = duration_target * scene.render.fps. Keep geometry and lighting simple for fast EEVEE rendering. Avoid simulations, particle systems, geometry nodes, compositing, volumetrics, cloth, smoke, fire, rigid body simulations and expensive modifiers. Prefer simple keyframe animation. Every animated object must already exist before keyframes are inserted. Before saving, verify that scene.camera is not None. The script MUST save the Blender scene using bpy.ops.wm.save_as_mainfile(filepath='/tmp/diboo_story_scene.blend'). After saving, verify that the file exists using Python standard library os.path.exists. At the end print exactly these diagnostic messages: DIBOO BLENDER SCENE CREATED, STORY TITLE, TOTAL FRAMES, FPS, RESOLUTION, BLENDER SCENE READY. The script must not render anything itself. Return ONLY the JSON object. No Markdown. No code fences. No explanations."
           }
           JSON
 
@@ -295,6 +295,19 @@ jobs:
                   "Story language must be English (en)."
               )
 
+          if not isinstance(
+              story["narration"],
+              str
+          ):
+              raise RuntimeError(
+                  "narration must be a string."
+              )
+
+          if not story["narration"].strip():
+              raise RuntimeError(
+                  "narration cannot be empty."
+              )
+
           raw_duration = story["duration_target"]
 
           if isinstance(raw_duration, bool):
@@ -454,6 +467,9 @@ jobs:
           print("")
           print("TOTAL SCENE DURATION:")
           print(total_scene_duration, "seconds")
+          print("")
+          print("NARRATION:")
+          print("AVAILABLE")
           PY
 
 
@@ -1037,75 +1053,548 @@ jobs:
 
 
       # ============================================================
-      # 10. PREPARE FFMPEG
+      # 10. PREPARE FFMPEG + AUDIO TOOLS
       # ============================================================
 
-      - name: Prepare FFmpeg
+      - name: Prepare FFmpeg and audio tools
         run: |
           set -e
 
           echo "================================"
-          echo "DIBOO FFMPEG PREPARATION"
+          echo "DIBOO FFMPEG + AUDIO PREPARATION"
           echo "================================"
 
-          if command -v ffmpeg >/dev/null 2>&1; then
+          sudo apt-get update
 
-            echo ""
-            echo "FFmpeg already available:"
-            ffmpeg -version | head -n 1
-
-          else
-
-            echo ""
-            echo "FFmpeg not found."
-            echo "Installing FFmpeg..."
-
-            sudo apt-get update
-
-            sudo apt-get install -y \
-              ffmpeg
-
-            echo ""
-            echo "FFmpeg installation completed."
-
-            ffmpeg -version | head -n 1
-
-          fi
+          sudo apt-get install -y \
+            ffmpeg \
+            espeak-ng
 
           echo ""
-          echo "DIBOO FFMPEG READY"
+          echo "FFmpeg:"
+          ffmpeg -version | head -n 1
+
+          echo ""
+          echo "eSpeak NG:"
+          espeak-ng --version | head -n 1
+
+          echo ""
+          echo "DIBOO AUDIO TOOLS READY"
 
 
       # ============================================================
-      # 11. ENCODE FINAL MP4
+      # 11. PREPARE NARRATION + MUSIC + SFX + SUBTITLES
       # ============================================================
 
-      - name: Encode final MP4 with FFmpeg
+      - name: Prepare Project_Diboo audio and subtitles
         run: |
           set -e
 
           echo "================================"
-          echo "DIBOO FINAL MP4 ENCODING"
+          echo "DIBOO AUDIO + SUBTITLE PIPELINE"
+          echo "================================"
+
+          python3 - <<'PY'
+          import json
+          import re
+          from pathlib import Path
+
+          with open(
+              "story.json",
+              "r",
+              encoding="utf-8"
+          ) as f:
+              story = json.load(f)
+
+          title = str(
+              story.get(
+                  "title",
+                  "Project_Diboo"
+              )
+          ).strip()
+
+          narration = str(
+              story.get(
+                  "narration",
+                  ""
+              )
+          ).strip()
+
+          if not narration:
+              raise RuntimeError(
+                  "Narration is empty."
+              )
+
+          scenes = story.get(
+              "scenes",
+              []
+          )
+
+          if not scenes:
+              raise RuntimeError(
+                  "No scenes available for SFX/subtitles."
+              )
+
+          Path(
+              "/tmp/diboo_title.txt"
+          ).write_text(
+              title,
+              encoding="utf-8"
+          )
+
+          Path(
+              "/tmp/diboo_narration.txt"
+          ).write_text(
+              narration,
+              encoding="utf-8"
+          )
+
+          print("")
+          print("TITLE:")
+          print(title)
+
+          print("")
+          print("NARRATION:")
+          print(narration)
+
+          print("")
+          print("SCENE COUNT:")
+          print(len(scenes))
+
+          print("")
+          print("Generating subtitle timing from narration/scenes...")
+
+          words = narration.split()
+
+          if not words:
+              raise RuntimeError(
+                  "Narration contains no words."
+              )
+
+          duration = int(
+              story["duration_target"]
+          )
+
+          total_words = len(words)
+
+          subtitle_entries = []
+
+          scene_start = 0.0
+
+          for scene_index, scene in enumerate(
+              scenes,
+              start=1
+          ):
+
+              scene_duration = int(
+                  scene["duration"]
+              )
+
+              scene_end = min(
+                  float(duration),
+                  scene_start + scene_duration
+              )
+
+              start_ratio = (
+                  scene_start / max(duration, 1)
+              )
+
+              end_ratio = (
+                  scene_end / max(duration, 1)
+              )
+
+              start_word = int(
+                  start_ratio * total_words
+              )
+
+              end_word = int(
+                  end_ratio * total_words
+              )
+
+              if scene_index == len(scenes):
+                  end_word = total_words
+
+              chunk = words[
+                  start_word:end_word
+              ]
+
+              if not chunk:
+                  scene_start = scene_end
+                  continue
+
+              chunk_text = " ".join(
+                  chunk
+              )
+
+              subtitle_entries.append(
+                  (
+                      scene_start,
+                      scene_end,
+                      chunk_text
+                  )
+              )
+
+              scene_start = scene_end
+
+          if not subtitle_entries:
+              subtitle_entries.append(
+                  (
+                      0.0,
+                      float(duration),
+                      narration
+                  )
+              )
+
+          def srt_time(seconds):
+              milliseconds = int(
+                  round(
+                      seconds * 1000
+                  )
+              )
+
+              hours = milliseconds // 3600000
+              milliseconds %= 3600000
+
+              minutes = milliseconds // 60000
+              milliseconds %= 60000
+
+              seconds_value = milliseconds // 1000
+              milliseconds %= 1000
+
+              return (
+                  f"{hours:02d}:"
+                  f"{minutes:02d}:"
+                  f"{seconds_value:02d},"
+                  f"{milliseconds:03d}"
+              )
+
+          with open(
+              "/tmp/diboo_subtitles.srt",
+              "w",
+              encoding="utf-8"
+          ) as f:
+
+              for index, (
+                  start,
+                  end,
+                  text
+              ) in enumerate(
+                  subtitle_entries,
+                  start=1
+              ):
+
+                  f.write(
+                      f"{index}\n"
+                  )
+
+                  f.write(
+                      f"{srt_time(start)} --> "
+                      f"{srt_time(end)}\n"
+                  )
+
+                  f.write(
+                      text.strip()
+                  )
+
+                  f.write(
+                      "\n\n"
+                  )
+
+          print("")
+          print("SUBTITLE FILE:")
+          print("/tmp/diboo_subtitles.srt")
+
+          print("")
+          print("SUBTITLE ENTRIES:")
+          print(len(subtitle_entries))
+
+          print("")
+          print("DIBOO AUDIO + SUBTITLE DATA READY")
+          PY
+
+          echo ""
+          echo "================================"
+          echo "GENERATING NARRATION AUDIO"
+          echo "================================"
+
+          espeak-ng \
+            -v en-us \
+            -s 155 \
+            -p 50 \
+            -a 165 \
+            -f /tmp/diboo_narration.txt \
+            -w /tmp/diboo_narration.wav
+
+          test -s /tmp/diboo_narration.wav
+
+          echo ""
+          echo "Narration WAV:"
+          ls -lh /tmp/diboo_narration.wav
+
+          echo ""
+          echo "================================"
+          echo "GENERATING BACKGROUND MUSIC"
+          echo "================================"
+
+          DURATION=$(python3 - <<'PY'
+          import json
+
+          with open(
+              "story.json",
+              "r",
+              encoding="utf-8"
+          ) as f:
+              story = json.load(f)
+
+          print(
+              int(
+                  story["duration_target"]
+              )
+          )
+          PY
+          )
+
+          ffmpeg \
+            -y \
+            -f lavfi \
+            -i "sine=frequency=220:sample_rate=48000:duration=${DURATION}" \
+            -f lavfi \
+            -i "sine=frequency=330:sample_rate=48000:duration=${DURATION}" \
+            -filter_complex \
+            "[0:a]volume=0.045[a];[1:a]volume=0.030[b];[a][b]amix=inputs=2:duration=longest,afade=t=in:st=0:d=2,afade=t=out:st=$((${DURATION}-3)):d=3" \
+            -ac 2 \
+            -ar 48000 \
+            /tmp/diboo_music.wav
+
+          test -s /tmp/diboo_music.wav
+
+          echo ""
+          echo "Music WAV:"
+          ls -lh /tmp/diboo_music.wav
+
+          echo ""
+          echo "================================"
+          echo "GENERATING SFX TRACK"
+          echo "================================"
+
+          ffmpeg \
+            -y \
+            -f lavfi \
+            -i "anoisesrc=color=white:amplitude=0.25:sample_rate=48000:duration=${DURATION}" \
+            -af "highpass=f=900,lowpass=f=5000,volume=0.018" \
+            -ac 2 \
+            -ar 48000 \
+            /tmp/diboo_sfx_base.wav
+
+          test -s /tmp/diboo_sfx_base.wav
+
+          python3 - <<'PY'
+          import json
+          import wave
+          from pathlib import Path
+
+          with open(
+              "story.json",
+              "r",
+              encoding="utf-8"
+          ) as f:
+              story = json.load(f)
+
+          scenes = story["scenes"]
+
+          duration = int(
+              story["duration_target"]
+          )
+
+          sample_rate = 48000
+          total_samples = duration * sample_rate
+
+          output = wave.open(
+              "/tmp/diboo_sfx_track.wav",
+              "wb"
+          )
+
+          output.setnchannels(1)
+          output.setsampwidth(2)
+          output.setframerate(sample_rate)
+
+          import math
+          import struct
+
+          audio = [
+              0.0
+          ] * total_samples
+
+          current_time = 0.0
+
+          for scene_index, scene in enumerate(
+              scenes,
+              start=1
+          ):
+
+              scene_duration = int(
+                  scene["duration"]
+              )
+
+              event_time = min(
+                  duration - 0.1,
+                  current_time + 0.25
+              )
+
+              start_sample = int(
+                  event_time * sample_rate
+              )
+
+              tone_duration = 0.12
+
+              tone_samples = int(
+                  tone_duration * sample_rate
+              )
+
+              frequency = 280 + (
+                  (scene_index % 5) * 90
+              )
+
+              for i in range(
+                  tone_samples
+              ):
+
+                  position = (
+                      start_sample + i
+                  )
+
+                  if position >= total_samples:
+                      break
+
+                  envelope = max(
+                      0.0,
+                      1.0 - (
+                          i / tone_samples
+                      )
+                  )
+
+                  value = (
+                      math.sin(
+                          2.0 *
+                          math.pi *
+                          frequency *
+                          i /
+                          sample_rate
+                      )
+                      *
+                      0.10
+                      *
+                      envelope
+                  )
+
+                  audio[position] += value
+
+              current_time += scene_duration
+
+          frames = bytearray()
+
+          for value in audio:
+
+              value = max(
+                  -1.0,
+                  min(
+                      1.0,
+                      value
+                  )
+              )
+
+              frames.extend(
+                  struct.pack(
+                      "<h",
+                      int(
+                          value *
+                          32767
+                      )
+                  )
+              )
+
+          output.writeframes(
+              bytes(frames)
+          )
+
+          output.close()
+
+          print("")
+          print("SFX EVENTS GENERATED:")
+          print(len(scenes))
+          PY
+
+          test -s /tmp/diboo_sfx_track.wav
+
+          echo ""
+          echo "SFX WAV:"
+          ls -lh /tmp/diboo_sfx_track.wav
+
+          echo ""
+          echo "================================"
+          echo "DIBOO AUDIO ASSETS READY"
+          echo "================================"
+
+
+      # ============================================================
+      # 12. ENCODE FINAL MP4 WITH VIDEO + VOICE + MUSIC + SFX
+      #     AND BURN SUBTITLES
+      # ============================================================
+
+      - name: Encode final Project_Diboo MP4
+        run: |
+          set -e
+
+          echo "================================"
+          echo "DIBOO FINAL MP4 POSTPRODUCTION"
           echo "================================"
 
           rm -f \
             /tmp/Project_Diboo_Final.mp4
+
+          NARRATION_DURATION=$(ffprobe \
+            -v error \
+            -show_entries format=duration \
+            -of default=noprint_wrappers=1:nokey=1 \
+            /tmp/diboo_narration.wav)
+
+          echo ""
+          echo "Narration duration:"
+          echo "${NARRATION_DURATION}s"
+
+          echo ""
+          echo "Rendering final audiovisual composition..."
 
           ffmpeg \
             -y \
             -framerate 24 \
             -start_number 1 \
             -i /tmp/diboo_render/frame_%04d.png \
+            -i /tmp/diboo_narration.wav \
+            -i /tmp/diboo_music.wav \
+            -i /tmp/diboo_sfx_track.wav \
+            -filter_complex \
+            "[0:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,format=yuv420p,subtitles=/tmp/diboo_subtitles.srt:force_style='FontName=DejaVu Sans,FontSize=18,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=2,Shadow=1,Alignment=2,MarginV=95'[v];[1:a]aresample=48000,volume=1.0[voice];[2:a]aresample=48000,volume=0.22[music];[3:a]aresample=48000,volume=0.55[sfx];[voice][music][sfx]amix=inputs=3:duration=longest:dropout_transition=2,alimiter=limit=0.95[a]" \
+            -map "[v]" \
+            -map "[a]" \
             -c:v libx264 \
             -preset medium \
             -crf 18 \
             -pix_fmt yuv420p \
+            -r 24 \
+            -c:a aac \
+            -b:a 192k \
+            -ar 48000 \
+            -ac 2 \
             -movflags +faststart \
+            /tmp/Project_Diboo_Final.mp4
+
+          test -s \
             /tmp/Project_Diboo_Final.mp4
 
           echo ""
           echo "================================"
-          echo "DIBOO FINAL MP4 CREATED"
+          echo "DIBOO FINAL AUDIOVISUAL MP4 CREATED"
           echo "================================"
 
           ls -lh \
@@ -1113,10 +1602,10 @@ jobs:
 
 
       # ============================================================
-      # 12. VERIFY FINAL MP4
+      # 13. VERIFY FINAL MP4 INCLUDING AUDIO
       # ============================================================
 
-      - name: Verify final MP4
+      - name: Verify final Project_Diboo MP4
         run: |
           set -e
 
@@ -1140,18 +1629,189 @@ jobs:
             -show_entries \
             format=duration,size \
             -show_entries \
-            stream=codec_name,width,height,r_frame_rate \
+            stream=index,codec_type,codec_name,width,height,r_frame_rate,sample_rate,channels \
             -of default=noprint_wrappers=1 \
             /tmp/Project_Diboo_Final.mp4
+
+          VIDEO_STREAMS=$(ffprobe \
+            -v error \
+            -select_streams v \
+            -show_entries stream=index \
+            -of csv=p=0 \
+            /tmp/Project_Diboo_Final.mp4 | wc -l)
+
+          AUDIO_STREAMS=$(ffprobe \
+            -v error \
+            -select_streams a \
+            -show_entries stream=index \
+            -of csv=p=0 \
+            /tmp/Project_Diboo_Final.mp4 | wc -l)
+
+          echo ""
+          echo "VIDEO STREAM COUNT:"
+          echo "$VIDEO_STREAMS"
+
+          echo ""
+          echo "AUDIO STREAM COUNT:"
+          echo "$AUDIO_STREAMS"
+
+          if [ "$VIDEO_STREAMS" -lt 1 ]; then
+            echo ""
+            echo "ERROR: Final MP4 has no video stream."
+            exit 1
+          fi
+
+          if [ "$AUDIO_STREAMS" -lt 1 ]; then
+            echo ""
+            echo "ERROR: Final MP4 has no audio stream."
+            exit 1
+          fi
+
+          VIDEO_WIDTH=$(ffprobe \
+            -v error \
+            -select_streams v:0 \
+            -show_entries stream=width \
+            -of csv=p=0 \
+            /tmp/Project_Diboo_Final.mp4)
+
+          VIDEO_HEIGHT=$(ffprobe \
+            -v error \
+            -select_streams v:0 \
+            -show_entries stream=height \
+            -of csv=p=0 \
+            /tmp/Project_Diboo_Final.mp4)
+
+          VIDEO_FPS=$(ffprobe \
+            -v error \
+            -select_streams v:0 \
+            -show_entries stream=r_frame_rate \
+            -of csv=p=0 \
+            /tmp/Project_Diboo_Final.mp4)
+
+          echo ""
+          echo "FINAL VIDEO WIDTH:"
+          echo "$VIDEO_WIDTH"
+
+          echo ""
+          echo "FINAL VIDEO HEIGHT:"
+          echo "$VIDEO_HEIGHT"
+
+          echo ""
+          echo "FINAL VIDEO FPS:"
+          echo "$VIDEO_FPS"
+
+          if [ "$VIDEO_WIDTH" -ne 1080 ]; then
+            echo ""
+            echo "ERROR: Expected width 1080."
+            exit 1
+          fi
+
+          if [ "$VIDEO_HEIGHT" -ne 1920 ]; then
+            echo ""
+            echo "ERROR: Expected height 1920."
+            exit 1
+          fi
 
           echo ""
           echo "================================"
           echo "DIBOO FINAL MP4: PASSED"
+          echo "VIDEO + AUDIO VERIFIED"
           echo "================================"
 
 
       # ============================================================
-      # 13. SEND FINAL MP4 TO TELEGRAM
+      # 14. PREPARE TELEGRAM METADATA
+      # ============================================================
+
+      - name: Prepare Telegram title description and hashtags
+        run: |
+          set -e
+
+          echo "================================"
+          echo "DIBOO TELEGRAM METADATA"
+          echo "================================"
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          with open(
+              "story.json",
+              "r",
+              encoding="utf-8"
+          ) as f:
+              story = json.load(f)
+
+          title = str(
+              story.get(
+                  "title",
+                  "Project_Diboo Short"
+              )
+          ).strip()
+
+          hook = str(
+              story.get(
+                  "hook",
+                  ""
+              )
+          ).strip()
+
+          description = (
+              hook
+              if hook
+              else "A new original Project_Diboo animated short."
+          )
+
+          hashtags = (
+              "#ProjectDiboo "
+              "#Shorts "
+              "#YouTubeShorts "
+              "#Animation "
+              "#3DAnimation "
+              "#Cartoon"
+          )
+
+          caption = (
+              f"{title}\n\n"
+              f"{description}\n\n"
+              f"{hashtags}"
+          )
+
+          if len(caption) > 1024:
+              caption = (
+                  f"{title}\n\n"
+                  f"{description[:700]}\n\n"
+                  f"{hashtags}"
+              )
+
+          Path(
+              "/tmp/diboo_telegram_caption.txt"
+          ).write_text(
+              caption,
+              encoding="utf-8"
+          )
+
+          print("")
+          print("================================")
+          print("TELEGRAM TITLE")
+          print("================================")
+          print(title)
+
+          print("")
+          print("================================")
+          print("TELEGRAM DESCRIPTION + HASHTAGS")
+          print("================================")
+          print(caption)
+
+          print("")
+          print("================================")
+          print("TELEGRAM CAPTION READY")
+          print("================================")
+          PY
+
+
+      # ============================================================
+      # 15. SEND FINAL COMPLETE MP4 TO TELEGRAM
       # ============================================================
 
       - name: Send final Project_Diboo MP4 to Telegram
@@ -1169,6 +1829,9 @@ jobs:
 
           test -s "$MP4"
 
+          test -s \
+            /tmp/diboo_telegram_caption.txt
+
           FILE_SIZE=$(stat -c%s "$MP4")
           FILE_SIZE_MB=$((FILE_SIZE / 1024 / 1024))
 
@@ -1176,11 +1839,15 @@ jobs:
           echo "FINAL MP4 SIZE:"
           echo "${FILE_SIZE_MB} MB"
 
+          echo ""
+          echo "TELEGRAM CAPTION:"
+          cat /tmp/diboo_telegram_caption.txt
+
           if [ "$FILE_SIZE" -le 52428800 ]; then
 
             echo ""
             echo "MP4 is within Telegram Bot API upload limit."
-            echo "Sending final video..."
+            echo "Sending COMPLETE audiovisual video..."
 
             RESPONSE=$(curl -sS \
               --fail-with-body \
@@ -1188,7 +1855,8 @@ jobs:
               "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendVideo" \
               -F "chat_id=${TELEGRAM_CHAT_ID}" \
               -F "video=@${MP4}" \
-              -F "caption=PROJECT_DIBOO — FINAL MP4\n1200 frames • 24 FPS • 1080x1920 • EEVEE")
+              -F "caption=$(cat /tmp/diboo_telegram_caption.txt)" \
+              -F "supports_streaming=true")
 
             echo ""
             echo "Telegram response:"
@@ -1212,7 +1880,7 @@ jobs:
               -X POST \
               "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
               -d "chat_id=${TELEGRAM_CHAT_ID}" \
-              --data-urlencode "text=PROJECT_DIBOO — RENDER COMPLETE. Final MP4 created successfully, but its size is ${FILE_SIZE_MB} MB and exceeds the Telegram Bot API upload limit. The MP4 remains available in the GitHub Actions artifact: Project_Diboo_Final_MP4.")
+              --data-urlencode "text=PROJECT_DIBOO — FINAL AUDIOVISUAL MP4 CREATED. Size: ${FILE_SIZE_MB} MB. The file exceeds the Telegram Bot API upload limit, so the complete MP4 remains available in the GitHub Actions artifact: Project_Diboo_Final_MP4.")
 
             echo ""
             echo "Telegram response:"
@@ -1229,7 +1897,7 @@ jobs:
 
 
       # ============================================================
-      # 14. UPLOAD FINAL PROJECT_DIBOO MP4
+      # 16. UPLOAD FINAL PROJECT_DIBOO MP4
       # ============================================================
 
       - name: Upload final Project_Diboo MP4
@@ -1242,7 +1910,7 @@ jobs:
 
 
       # ============================================================
-      # 15. COMPLETE PROJECT_DIBOO TEST
+      # 17. COMPLETE PROJECT_DIBOO TEST
       # ============================================================
 
       - name: Complete Project_Diboo test
@@ -1264,9 +1932,14 @@ jobs:
           echo "Fast render configuration: PASSED"
           echo "Full animation render: PASSED"
           echo "Render verification: PASSED"
-          echo "FFmpeg preparation: PASSED"
-          echo "Final MP4 encoding: PASSED"
+          echo "FFmpeg + audio preparation: PASSED"
+          echo "Narration generation: PASSED"
+          echo "Music generation: PASSED"
+          echo "SFX generation: PASSED"
+          echo "Subtitle generation: PASSED"
+          echo "Final audiovisual MP4 encoding: PASSED"
           echo "Final MP4 verification: PASSED"
+          echo "Telegram metadata: PASSED"
           echo "Telegram delivery: PASSED"
           echo "Final Project_Diboo MP4 upload: PASSED"
 
@@ -1277,7 +1950,7 @@ jobs:
 
 
       # ============================================================
-      # 16. COMPLETE JOB
+      # 18. COMPLETE JOB
       # ============================================================
 
       - name: Complete job
@@ -1299,6 +1972,10 @@ jobs:
           echo "24 FPS"
           echo "1080x1920"
           echo "EEVEE"
+          echo "NARRATION"
+          echo "MUSIC"
+          echo "SFX"
+          echo "SUBTITLES"
           echo "FFmpeg MP4"
           echo "TELEGRAM DELIVERY"
           echo "UPLOAD COMPLETE"
