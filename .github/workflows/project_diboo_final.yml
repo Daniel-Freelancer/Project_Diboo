@@ -1,29 +1,23 @@
 name: Project_Diboo_Final
 
 on:
-  # Uruguay UTC-3:
-  # 00:00 Uruguay = 03:00 UTC
   schedule:
+    # 00:00 Uruguay (UTC-3) = 03:00 UTC
     - cron: "0 3 * * *"
-
-  # Permite ejecutarlo manualmente desde GitHub Actions
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-
   generate-video:
-
     name: Project_Diboo Video ${{ matrix.video_number }}
-
     runs-on: ubuntu-latest
+    timeout-minutes: 90
 
     strategy:
       fail-fast: false
       max-parallel: 10
-
       matrix:
         video_number:
           - "01"
@@ -39,83 +33,41 @@ jobs:
 
     env:
       VIDEO_NUMBER: ${{ matrix.video_number }}
+      FPS: "24"
+      WIDTH: "1080"
+      HEIGHT: "1920"
+      GEMINI_MAX_ATTEMPTS: "5"
+      BLENDER_MAX_REPAIRS: "4"
 
     steps:
-
-      # ============================================================
-      # 1. BASIC SETUP
-      # ============================================================
-
       - name: Initialize Project_Diboo
+        shell: bash
         run: |
-          set -euo pipefail
-
+          set -Eeuo pipefail
+          mkdir -p blender_scene logs output
           echo "========================================"
           echo "PROJECT_DIBOO"
-          echo "VIDEO $VIDEO_NUMBER / 10"
+          echo "VIDEO ${VIDEO_NUMBER} / 10"
           echo "========================================"
-
-          mkdir -p blender_scene
-          mkdir -p logs
-          mkdir -p output
-
-          echo "VIDEO_NUMBER=$VIDEO_NUMBER"
-
           date -u
-
-          echo ""
-          echo "Runner:"
           uname -a
 
-
-      # ============================================================
-      # 2. INSTALL BLENDER + FFMPEG
-      # ============================================================
-
       - name: Prepare Blender and FFmpeg
+        shell: bash
         run: |
-          set -euo pipefail
-
-          echo "========================================"
-          echo "DIBOO TOOL PREPARATION"
-          echo "========================================"
-
+          set -Eeuo pipefail
           sudo apt-get update
-
-          sudo apt-get install -y \
-            blender \
-            ffmpeg \
-            libtbb12 \
-            libegl1 \
-            libgl1 \
-            libglib2.0-0
-
-          echo ""
-          echo "BLENDER:"
+          sudo apt-get install -y blender ffmpeg libtbb12 libegl1 libgl1 libglib2.0-0
           blender --version | head -n 1
-
-          echo ""
-          echo "FFMPEG:"
           ffmpeg -version | head -n 1
 
-          echo ""
-          echo "DIBOO TOOLS READY"
-
-
-      # ============================================================
-      # 3. GENERATE STORY + BLENDER SCRIPT
-      # ============================================================
-
-      - name: Generate Project_Diboo story and Blender script
+      - name: Generate story and Blender script
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        shell: bash
         run: |
-          set -euo pipefail
-
-          echo "========================================"
-          echo "PROJECT_DIBOO STORY GENERATION"
-          echo "VIDEO $VIDEO_NUMBER / 10"
-          echo "========================================"
+          set -Eeuo pipefail
+          test -n "${GEMINI_API_KEY}"
 
           cat > request.json <<'JSON'
           {
@@ -124,523 +76,1131 @@ jobs:
           }
           JSON
 
-          SUCCESS=false
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path("request.json")
+          data = json.loads(p.read_text(encoding="utf-8"))
+          assert data["model"] and data["input"]
+          p.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+          PY
 
-          for ATTEMPT in 1 2 3 4 5
-          do
-            echo ""
-            echo "===== GEMINI ATTEMPT $ATTEMPT / 5 ====="
+          SUCCESS=0
+          for ATTEMPT in $(seq 1 "${GEMINI_MAX_ATTEMPTS}"); do
+            echo "===== GEMINI ATTEMPT ${ATTEMPT}/${GEMINI_MAX_ATTEMPTS} ====="
 
             set +e
-
-            RESPONSE=$(curl -sS \
-              --fail-with-body \
-              -H "x-goog-api-key: $GEMINI_API_KEY" \
+            RESPONSE="$(curl -sS --connect-timeout 20 --max-time 180 \
+              -w '\n__HTTP_STATUS__:%{http_code}' \
+              -H "x-goog-api-key: ${GEMINI_API_KEY}" \
               -H "Content-Type: application/json" \
               -X POST \
               "https://generativelanguage.googleapis.com/v1beta/interactions" \
-              -d @request.json)
-
+              -d @request.json)"
             CURL_EXIT=$?
-
             set -e
 
-            echo "$RESPONSE" > gemini_response.json
+            HTTP_STATUS="$(printf '%s\n' "${RESPONSE}" | sed -n 's/^__HTTP_STATUS__://p' | tail -n 1)"
+            BODY="$(printf '%s\n' "${RESPONSE}" | sed '/^__HTTP_STATUS__:/d')"
 
-            if [ "$CURL_EXIT" -ne 0 ]; then
-              echo "Gemini HTTP request failed."
+            printf '%s\n' "${BODY}" > gemini_response.json
 
-              if echo "$RESPONSE" | grep -qE \
-                '"code": ?503|"status": ?"UNAVAILABLE"|service_unavailable'
+            if [ "${CURL_EXIT}" -eq 0 ] && [ "${HTTP_STATUS}" = "200" ]; then
+              if python3 - <<'PY'
+          import json
+
+          with open("gemini_response.json", encoding="utf-8") as f:
+              x = json.load(f)
+
+          raise SystemExit(
+              0 if "error" not in x else 1
+          )
+          PY
               then
-                echo "Gemini temporarily unavailable."
-                sleep 20
-                continue
+                SUCCESS=1
+                break
               fi
-
-              if echo "$RESPONSE" | grep -qE \
-                '"code": ?429|too_many_requests|Rate limit exceeded'
-              then
-                echo "Gemini rate limit reached."
-                sleep 60
-                continue
-              fi
-
-              cat gemini_response.json
-              exit 1
             fi
 
-            if echo "$RESPONSE" | grep -q '"error"'; then
-              echo "===== GEMINI API ERROR ====="
-              cat gemini_response.json
-              exit 1
+            echo "Gemini request failed."
+            echo "curl=${CURL_EXIT}"
+            echo "http=${HTTP_STATUS:-unknown}"
+
+            if grep -qE \
+              '"code": ?(429|500|502|503|504)|"status": ?"UNAVAILABLE"|rate.?limit|temporarily unavailable' \
+              gemini_response.json
+            then
+              sleep_seconds=$((ATTEMPT * ATTEMPT * 10))
+              echo "Retryable Gemini error."
+              echo "Sleeping ${sleep_seconds}s."
+              sleep "${sleep_seconds}"
+              continue
             fi
 
-            SUCCESS=true
-            break
+            cat gemini_response.json
+            exit 1
           done
 
-          if [ "$SUCCESS" != "true" ]; then
-            echo "===== GEMINI FAILED AFTER 5 ATTEMPTS ====="
+          [ "${SUCCESS}" -eq 1 ] || {
+            cat gemini_response.json
             exit 1
-          fi
-
-          echo ""
-          echo "===== GEMINI RESPONSE RECEIVED ====="
-
-
-      # ============================================================
-      # 4. EXTRACT STORY + BLENDER SCRIPT
-      # ============================================================
-
-      - name: Extract Project_Diboo files
-        run: |
-          set -euo pipefail
+          }
 
           python3 - <<'PY'
           import json
           from pathlib import Path
 
-          with open(
-              "gemini_response.json",
-              "r",
-              encoding="utf-8"
-          ) as f:
-              response = json.load(f)
-
-          output_text = None
-
-          for step in response.get("steps", []):
-              if step.get("type") != "model_output":
-                  continue
-
-              for content in step.get("content", []):
-                  if content.get("type") == "text":
-                      text = content.get(
-                          "text",
-                          ""
-                      ).strip()
-
-                      if text:
-                          output_text = text
-                          break
-
-              if output_text:
-                  break
-
-          if not output_text:
-              raise RuntimeError(
-                  "Gemini response did not contain model output text."
+          response = json.loads(
+              Path("gemini_response.json").read_text(
+                  encoding="utf-8"
               )
+          )
 
-          if output_text.startswith("```json"):
-              output_text = output_text[7:]
+          texts = []
 
-          elif output_text.startswith("```"):
-              output_text = output_text[3:]
+          def walk(value):
+              if isinstance(value, dict):
+                  if (
+                      value.get("type") == "text"
+                      and isinstance(
+                          value.get("text"),
+                          str
+                      )
+                  ):
+                      texts.append(value["text"])
 
-          if output_text.rstrip().endswith("```"):
-              output_text = output_text.rstrip()[:-3]
+                  for v in value.values():
+                      walk(v)
 
-          output_text = output_text.strip()
+              elif isinstance(value, list):
+                  for v in value:
+                      walk(v)
 
-          generated = json.loads(output_text)
+          walk(response)
 
-          if "story" not in generated:
+          output = max(
+              (
+                  x.strip()
+                  for x in texts
+                  if x.strip()
+              ),
+              key=len,
+              default=""
+          )
+
+          if not output:
               raise RuntimeError(
-                  "Gemini output is missing story."
-              )
-
-          if "blender_script" not in generated:
-              raise RuntimeError(
-                  "Gemini output is missing blender_script."
-              )
-
-          story = generated["story"]
-          blender_script = generated["blender_script"]
-
-          if not isinstance(story, dict):
-              raise RuntimeError(
-                  "story must be an object."
-              )
-
-          if not isinstance(blender_script, str):
-              raise RuntimeError(
-                  "blender_script must be a string."
-              )
-
-          blender_script = blender_script.strip()
-
-          if blender_script.startswith("```python"):
-              blender_script = blender_script[
-                  len("```python"):
-              ]
-
-          elif blender_script.startswith("```"):
-              blender_script = blender_script[3:]
-
-          if blender_script.rstrip().endswith("```"):
-              blender_script = blender_script.rstrip()[:-3]
-
-          blender_script = blender_script.strip()
-
-          if not blender_script:
-              raise RuntimeError(
-                  "Generated Blender script is empty."
-              )
-
-          with open(
-              "story.json",
-              "w",
-              encoding="utf-8"
-          ) as f:
-              json.dump(
-                  story,
-                  f,
-                  indent=2,
-                  ensure_ascii=False
+                  "Gemini response contained no text model output."
               )
 
           Path(
-              "blender_scene/blender_scene.py"
+              "gemini_model_output.txt"
           ).write_text(
-              blender_script,
+              output,
               encoding="utf-8"
           )
 
-          print("")
-          print("===== STORY.JSON CREATED =====")
           print(
-              json.dumps(
-                  story,
-                  indent=2,
-                  ensure_ascii=False
-              )
-          )
-
-          print("")
-          print("===== BLENDER SCRIPT CREATED =====")
-          print(
-              "blender_scene/blender_scene.py"
-          )
-
-          print("")
-          print("Script size:")
-          print(
-              len(blender_script),
+              "Gemini model output captured:",
+              len(output),
               "characters"
           )
           PY
 
-
-      # ============================================================
-      # 5. VALIDATE STORY
-      # ============================================================
-
-      - name: Validate Project_Diboo story
+      - name: Parse and validate generated package
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        shell: bash
         run: |
-          set -euo pipefail
+          set -Eeuo pipefail
 
-          python3 - <<'PY'
+          cat > validate_package.py <<'PY'
           import json
           import re
+          import sys
+          from pathlib import Path
 
-          with open(
-              "story.json",
-              "r",
+          raw = Path(
+              "gemini_model_output.txt"
+          ).read_text(
               encoding="utf-8"
-          ) as f:
-              story = json.load(f)
+          ).strip()
 
-          required_fields = [
-              "title",
-              "description",
-              "hashtags",
-              "duration_target",
-              "language",
-              "hook",
-              "visual_theme",
-              "music",
-              "scenes"
-          ]
+          def clean(s):
+              s = s.strip()
 
-          for field in required_fields:
-              if field not in story:
-                  raise RuntimeError(
-                      f"Missing required field: {field}"
+              if s.startswith("```json"):
+                  s = s[7:]
+
+              elif s.startswith("```"):
+                  s = s[3:]
+
+              if s.rstrip().endswith("```"):
+                  s = s.rstrip()[:-3]
+
+              return s.strip()
+
+          def extract_object(s):
+              s = clean(s)
+
+              try:
+                  return json.loads(s)
+
+              except json.JSONDecodeError:
+                  pass
+
+              start = s.find("{")
+
+              if start < 0:
+                  raise ValueError(
+                      "No JSON object found."
                   )
 
-          if not isinstance(story["title"], str):
-              raise RuntimeError(
-                  "title must be a string."
+              depth = 0
+              in_string = False
+              escaped = False
+
+              for i in range(
+                  start,
+                  len(s)
+              ):
+                  ch = s[i]
+
+                  if in_string:
+
+                      if escaped:
+                          escaped = False
+
+                      elif ch == "\\":
+                          escaped = True
+
+                      elif ch == '"':
+                          in_string = False
+
+                      continue
+
+                  if ch == '"':
+                      in_string = True
+
+                  elif ch == "{":
+                      depth += 1
+
+                  elif ch == "}":
+                      depth -= 1
+
+                      if depth == 0:
+                          candidate = s[
+                              start:i + 1
+                          ]
+
+                          return json.loads(
+                              candidate
+                          )
+
+              raise ValueError(
+                  "Could not find a complete valid JSON object."
               )
 
-          if not story["title"].strip():
-              raise RuntimeError(
-                  "title cannot be empty."
-              )
+          try:
 
-          if str(story["language"]).lower() != "en":
-              raise RuntimeError(
-                  "Story language must be English (en)."
-              )
+              generated = extract_object(raw)
 
-          duration_value = story["duration_target"]
-
-          if isinstance(duration_value, bool):
-              raise RuntimeError(
-                  "duration_target cannot be boolean."
-              )
-
-          if isinstance(duration_value, int):
-              duration = duration_value
-
-          elif isinstance(duration_value, float):
-              duration = int(duration_value)
-
-          elif isinstance(duration_value, str):
-              match = re.search(
-                  r"\d+",
-                  duration_value
-              )
-
-              if not match:
+              if not isinstance(
+                  generated,
+                  dict
+              ):
                   raise RuntimeError(
-                      "Could not extract duration."
+                      "Generated package must be a JSON object."
                   )
 
-              duration = int(match.group(0))
-
-          else:
-              raise RuntimeError(
-                  "Unsupported duration_target format."
-              )
-
-          if not 40 <= duration <= 60:
-              raise RuntimeError(
-                  f"Invalid duration: {duration}. "
-                  "Must be between 40 and 60 seconds."
-              )
-
-          story["duration_target"] = duration
-
-          if not isinstance(
-              story["hashtags"],
-              list
-          ) or not story["hashtags"]:
-              raise RuntimeError(
-                  "hashtags must be a non-empty list."
-              )
-
-          if not isinstance(
-              story["visual_theme"],
-              dict
-          ):
-              raise RuntimeError(
-                  "visual_theme must be an object."
-              )
-
-          for field in [
-              "style",
-              "palette",
-              "lighting",
-              "animation",
-              "camera"
-          ]:
-              if field not in story["visual_theme"]:
+              if set(generated) != {
+                  "story",
+                  "blender_script"
+              }:
                   raise RuntimeError(
-                      f"visual_theme missing: {field}"
+                      "Top-level fields must be exactly "
+                      "story and blender_script."
                   )
 
-          if not isinstance(
-              story["music"],
-              dict
-          ):
-              raise RuntimeError(
-                  "music must be an object."
-              )
+              story = generated[
+                  "story"
+              ]
 
-          for field in [
-              "style",
-              "mood",
-              "intensity",
-              "instrumentation",
-              "timing"
-          ]:
-              if field not in story["music"]:
+              script = generated[
+                  "blender_script"
+              ]
+
+              if not isinstance(
+                  story,
+                  dict
+              ):
                   raise RuntimeError(
-                      f"music missing: {field}"
+                      "story must be an object."
                   )
 
-          scenes = story["scenes"]
-
-          if not isinstance(
-              scenes,
-              list
-          ) or not scenes:
-              raise RuntimeError(
-                  "No scenes were generated."
-              )
-
-          scene_fields = [
-              "duration",
-              "description",
-              "camera",
-              "action",
-              "emotion",
-              "visual_transition",
-              "sfx",
-              "music"
-          ]
-
-          total_scene_duration = 0
-
-          for index, scene in enumerate(
-              scenes,
-              start=1
-          ):
-
-              if not isinstance(scene, dict):
+              if (
+                  not isinstance(
+                      script,
+                      str
+                  )
+                  or not script.strip()
+              ):
                   raise RuntimeError(
-                      f"Scene {index} is not an object."
+                      "blender_script must be a non-empty string."
                   )
 
-              for field in scene_fields:
-                  if field not in scene:
+              required = {
+                  "title",
+                  "description",
+                  "hashtags",
+                  "duration_target",
+                  "language",
+                  "hook",
+                  "visual_theme",
+                  "music",
+                  "scenes"
+              }
+
+              missing = (
+                  required
+                  - set(story)
+              )
+
+              if missing:
+                  raise RuntimeError(
+                      f"Story missing fields: {sorted(missing)}"
+                  )
+
+              duration = story[
+                  "duration_target"
+              ]
+
+              if isinstance(
+                  duration,
+                  bool
+              ):
+                  raise RuntimeError(
+                      "duration_target cannot be boolean."
+                  )
+
+              if isinstance(
+                  duration,
+                  str
+              ):
+                  m = re.fullmatch(
+                      r"\s*(\d+)\s*",
+                      duration
+                  )
+
+                  if not m:
                       raise RuntimeError(
-                          f"Scene {index} missing field: {field}"
+                          "duration_target must be an integer."
                       )
 
-              raw = scene["duration"]
-
-              if isinstance(raw, bool):
-                  raise RuntimeError(
-                      f"Scene {index} duration cannot be boolean."
+                  duration = int(
+                      m.group(1)
                   )
 
-              if isinstance(raw, str):
-                  match = re.search(
-                      r"\d+",
-                      raw
-                  )
-
-                  if not match:
-                      raise RuntimeError(
-                          f"Scene {index} has invalid duration."
-                      )
-
-                  scene_duration = int(
-                      match.group(0)
-                  )
-
-              elif isinstance(raw, (int, float)):
-                  scene_duration = int(raw)
+              elif isinstance(
+                  duration,
+                  int
+              ):
+                  pass
 
               else:
                   raise RuntimeError(
-                      f"Scene {index} duration must be numeric."
+                      "duration_target must be an integer."
                   )
 
-              if scene_duration <= 0:
+              if not 40 <= duration <= 60:
                   raise RuntimeError(
-                      f"Scene {index} duration must be positive."
+                      f"duration_target {duration} is outside 40-60."
                   )
 
-              scene["duration"] = scene_duration
-              total_scene_duration += scene_duration
+              story[
+                  "duration_target"
+              ] = duration
 
-          if abs(
-              total_scene_duration - duration
-          ) > 5:
-              raise RuntimeError(
-                  f"Total scene duration "
-                  f"({total_scene_duration}s) differs too much "
-                  f"from target ({duration}s)."
+              if str(
+                  story["language"]
+              ).lower() != "en":
+                  raise RuntimeError(
+                      "language must be en."
+                  )
+
+              if (
+                  not isinstance(
+                      story["hashtags"],
+                      list
+                  )
+                  or not story["hashtags"]
+              ):
+                  raise RuntimeError(
+                      "hashtags must be a non-empty list."
+                  )
+
+              if not isinstance(
+                  story["visual_theme"],
+                  dict
+              ):
+                  raise RuntimeError(
+                      "visual_theme must be an object."
+                  )
+
+              if not isinstance(
+                  story["music"],
+                  dict
+              ):
+                  raise RuntimeError(
+                      "music must be an object."
+                  )
+
+              scenes = story[
+                  "scenes"
+              ]
+
+              if (
+                  not isinstance(
+                      scenes,
+                      list
+                  )
+                  or not scenes
+              ):
+                  raise RuntimeError(
+                      "scenes must be a non-empty list."
+                  )
+
+              scene_fields = {
+                  "duration",
+                  "description",
+                  "camera",
+                  "action",
+                  "emotion",
+                  "visual_transition",
+                  "sfx",
+                  "music"
+              }
+
+              total = 0
+
+              for idx, scene in enumerate(
+                  scenes,
+                  1
+              ):
+
+                  if not isinstance(
+                      scene,
+                      dict
+                  ):
+                      raise RuntimeError(
+                          f"Scene {idx} must be an object."
+                      )
+
+                  missing = (
+                      scene_fields
+                      - set(scene)
+                  )
+
+                  if missing:
+                      raise RuntimeError(
+                          f"Scene {idx} missing {sorted(missing)}"
+                      )
+
+                  raw_d = scene[
+                      "duration"
+                  ]
+
+                  if isinstance(
+                      raw_d,
+                      bool
+                  ):
+                      raise RuntimeError(
+                          f"Scene {idx} duration cannot be boolean."
+                      )
+
+                  if isinstance(
+                      raw_d,
+                      str
+                  ):
+
+                      m = re.fullmatch(
+                          r"\s*(\d+)\s*",
+                          raw_d
+                      )
+
+                      if not m:
+                          raise RuntimeError(
+                              f"Scene {idx} duration must be an integer."
+                          )
+
+                      d = int(
+                          m.group(1)
+                      )
+
+                  elif isinstance(
+                      raw_d,
+                      int
+                  ):
+                      d = raw_d
+
+                  else:
+                      raise RuntimeError(
+                          f"Scene {idx} duration must be an integer."
+                      )
+
+                  if d <= 0:
+                      raise RuntimeError(
+                          f"Scene {idx} duration must be positive."
+                      )
+
+                  scene[
+                      "duration"
+                  ] = d
+
+                  total += d
+
+                  for forbidden in (
+                      "narration",
+                      "voice",
+                      "subtitle",
+                      "subtitles"
+                  ):
+                      if forbidden in scene:
+                          raise RuntimeError(
+                              f"Scene {idx} contains forbidden field {forbidden}."
+                          )
+
+              for forbidden in (
+                  "narration",
+                  "voice",
+                  "subtitle",
+                  "subtitles"
+              ):
+                  if forbidden in story:
+                      raise RuntimeError(
+                          f"Story contains forbidden field {forbidden}."
+                      )
+
+              if abs(
+                  total - duration
+              ) > 3:
+                  raise RuntimeError(
+                      f"Scene total {total}s differs from "
+                      f"target {duration}s by more than 3s."
+                  )
+
+              script = clean(
+                  script
               )
 
-          with open(
-              "story.json",
-              "w",
-              encoding="utf-8"
-          ) as f:
-              json.dump(
-                  story,
-                  f,
-                  indent=2,
+              if script.startswith(
+                  "python\n"
+              ):
+                  script = script[
+                      7:
+                  ].lstrip()
+
+              Path(
+                  "story.json"
+              ).write_text(
+                  json.dumps(
+                      story,
+                      indent=2,
+                      ensure_ascii=False
+                  ),
+                  encoding="utf-8"
+              )
+
+              Path(
+                  "blender_scene/blender_scene.py"
+              ).write_text(
+                  script + "\n",
+                  encoding="utf-8"
+              )
+
+              Path(
+                  "/tmp/diboo_duration.txt"
+              ).write_text(
+                  str(duration),
+                  encoding="utf-8"
+              )
+
+              print(
+                  "STORY PACKAGE VALIDATION: PASSED"
+              )
+
+              print(
+                  "TITLE:",
+                  story["title"]
+              )
+
+              print(
+                  "DURATION:",
+                  duration
+              )
+
+              print(
+                  "SCENES:",
+                  len(scenes)
+              )
+
+              print(
+                  "SCENE TOTAL:",
+                  total
+              )
+
+          except Exception as exc:
+
+              Path(
+                  "/tmp/package_validation_error.txt"
+              ).write_text(
+                  f"{type(exc).__name__}: {exc}",
+                  encoding="utf-8"
+              )
+
+              print(
+                  f"PACKAGE_VALIDATION_FAILED: "
+                  f"{type(exc).__name__}: {exc}"
+              )
+
+              sys.exit(10)
+          PY
+
+          MAX_PACKAGE_REPAIRS=3
+          PACKAGE_REPAIR=0
+
+          while true; do
+
+            rm -f \
+              story.json \
+              blender_scene/blender_scene.py \
+              /tmp/diboo_duration.txt
+
+            set +e
+
+            python3 validate_package.py
+
+            VALIDATE_EXIT=$?
+
+            set -e
+
+            if [
+              "${VALIDATE_EXIT}" -eq 0
+            ]; then
+              break
+            fi
+
+            if [
+              "${PACKAGE_REPAIR}" -ge \
+              "${MAX_PACKAGE_REPAIRS}"
+            ]; then
+
+              echo \
+                "Maximum Gemini package repairs reached."
+
+              cat \
+                /tmp/package_validation_error.txt \
+                || true
+
+              exit 1
+            fi
+
+            PACKAGE_REPAIR=$(
+              (
+                PACKAGE_REPAIR + 1
+              )
+            )
+
+            echo \
+              "Malformed/invalid Gemini package."
+
+            echo \
+              "Repair ${PACKAGE_REPAIR}/${MAX_PACKAGE_REPAIRS}"
+
+            python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          raw = Path(
+              "gemini_model_output.txt"
+          ).read_text(
+              encoding="utf-8",
+              errors="replace"
+          )
+
+          error = Path(
+              "/tmp/package_validation_error.txt"
+          ).read_text(
+              encoding="utf-8",
+              errors="replace"
+          )
+
+          if len(raw) > 50000:
+              raw = raw[:50000]
+
+          prompt = f"""Repair the following Project_Diboo model output into ONE valid JSON object.
+
+          Return ONLY valid JSON. No Markdown. No code fences. No explanation.
+
+          The output MUST have exactly these top-level fields:
+          - story
+          - blender_script
+
+          story MUST contain exactly:
+          title, description, hashtags, duration_target, language, hook, visual_theme, music, scenes
+
+          duration_target must be an integer from 40 to 60.
+          language must be "en".
+          visual_theme must contain style, palette, lighting, animation, camera.
+          music must contain style, mood, intensity, instrumentation, timing.
+          scenes must be a non-empty list.
+          Every scene must contain:
+          duration, description, camera, action, emotion, visual_transition, sfx, music
+          Scene duration must be a positive integer.
+          Scene total must be within 3 seconds of duration_target.
+          Do not include narration, voice, subtitle or subtitles fields.
+          blender_script must be a JSON string containing a complete standalone Blender 4.0.2 Python script.
+
+          The Blender script must:
+          - import bpy
+          - use stable Blender 4.0.2 APIs
+          - use bpy.ops.mesh.primitive_plane_add for planes
+          - never use bpy.ops.mesh.create_plane
+          - never access material node inputs by numeric indexes
+          - use named node sockets
+          - use RGBA color tuples
+          - create the camera before animation
+          - set scene.camera
+          - create at least one light
+          - use scene.render.engine = 'BLENDER_EEVEE'
+          - never use BLENDER_EEVEE_NEXT
+          - use 1080x1920 at 24 FPS
+          - avoid simulations, particles, geometry nodes, volumetrics, cloth, smoke, fire and rigid bodies
+          - use expressive animated characters and deliberate camera movement
+          - use no external assets, downloads, network, audio, narration or subtitles
+          - save /tmp/diboo_story_scene.blend
+          - verify the saved file with os.path.exists
+          - print the required DIBOO diagnostics
+          - never render the animation itself
+
+          VALIDATION ERROR:
+          {error}
+
+          BROKEN MODEL OUTPUT:
+          {raw}
+          """
+
+          Path(
+              "package_repair_request.json"
+          ).write_text(
+              json.dumps(
+                  {
+                      "model":
+                          "gemini-3.5-flash-lite",
+                      "input":
+                          prompt
+                  },
                   ensure_ascii=False
-              )
-
-          with open(
-              "/tmp/diboo_duration.txt",
-              "w",
+              ),
               encoding="utf-8"
-          ) as f:
-              f.write(str(duration))
-
-          print("")
-          print("========================================")
-          print("PROJECT_DIBOO STORY VALIDATION: PASSED")
-          print("========================================")
-          print("TITLE:", story["title"])
-          print("DURATION:", duration)
-          print("SCENES:", len(scenes))
-          print(
-              "TOTAL SCENE DURATION:",
-              total_scene_duration
           )
           PY
 
+            set +e
 
-      # ============================================================
-      # 6. VALIDATE BLENDER PYTHON
-      # ============================================================
+            RESPONSE="$(
+              curl -sS \
+                --connect-timeout 20 \
+                --max-time 180 \
+                -w '\n__HTTP_STATUS__:%{http_code}' \
+                -H \
+                  "x-goog-api-key: ${GEMINI_API_KEY}" \
+                -H \
+                  "Content-Type: application/json" \
+                -X POST \
+                "https://generativelanguage.googleapis.com/v1beta/interactions" \
+                -d @package_repair_request.json
+            )"
 
-      - name: Validate Blender Python script
-        run: |
-          set -euo pipefail
+            CURL_EXIT=$?
 
-          test -s \
-            blender_scene/blender_scene.py
+            set -e
+
+            HTTP_STATUS="$(
+              printf '%s\n' "${RESPONSE}" |
+              sed \
+                -n \
+                's/^__HTTP_STATUS__://p' |
+              tail -n 1
+            )"
+
+            BODY="$(
+              printf '%s\n' "${RESPONSE}" |
+              sed '/^__HTTP_STATUS__:/d'
+            )"
+
+            printf '%s\n' "${BODY}" \
+              > package_repair_response.json
+
+            if [
+              "${CURL_EXIT}" -ne 0
+            ] || [
+              "${HTTP_STATUS}" != "200"
+            ]; then
+
+              echo \
+                "Gemini package repair failed."
+
+              cat \
+                package_repair_response.json
+
+              exit 1
+            fi
+
+            python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          response = json.loads(
+              Path(
+                  "package_repair_response.json"
+              ).read_text(
+                  encoding="utf-8"
+              )
+          )
+
+          texts = []
+
+          def walk(x):
+
+              if isinstance(x, dict):
+
+                  if (
+                      x.get("type") == "text"
+                      and isinstance(
+                          x.get("text"),
+                          str
+                      )
+                  ):
+                      texts.append(
+                          x["text"]
+                      )
+
+                  for v in x.values():
+                      walk(v)
+
+              elif isinstance(x, list):
+
+                  for v in x:
+                      walk(v)
+
+          walk(response)
+
+          text = max(
+              (
+                  x.strip()
+                  for x in texts
+                  if x.strip()
+              ),
+              key=len,
+              default=""
+          )
+
+          if not text:
+              raise RuntimeError(
+                  "Gemini package repair response contained no text."
+              )
+
+          Path(
+              "gemini_model_output.txt"
+          ).write_text(
+              text,
+              encoding="utf-8"
+          )
+          PY
+
+          done
 
           python3 -m py_compile \
-            blender_scene/blender_scene.py
+            blender_scene/blender_scene.py \
+            || echo \
+              "Initial Blender syntax check failed; pre-execution repair stage will fix it."
 
-          echo ""
-          echo "Blender Python syntax: PASSED"
-
-          ls -lh \
-            blender_scene/blender_scene.py
-
-
-      # ============================================================
-      # 7. GENERATE BLENDER SCENE + AUTO REPAIR
-      # ============================================================
-
-      - name: Generate Blender scene
+      - name: Repair Blender script before execution
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        shell: bash
         run: |
-          set -euo pipefail
+          set -Eeuo pipefail
 
-          echo "========================================"
-          echo "DIBOO BLENDER SCENE GENERATOR"
-          echo "VIDEO $VIDEO_NUMBER"
-          echo "========================================"
+          MAX_REPAIRS="${BLENDER_MAX_REPAIRS}"
+          REPAIR=0
+
+          while true; do
+
+            if python3 -m py_compile \
+              blender_scene/blender_scene.py \
+              2> blender_scene/py_compile_error.log
+            then
+
+              echo \
+                "BLENDER PYTHON SYNTAX: PASSED"
+
+              break
+            fi
+
+            if [
+              "${REPAIR}" -ge \
+              "${MAX_REPAIRS}"
+            ]; then
+
+              echo \
+                "Maximum pre-execution syntax repairs reached."
+
+              cat \
+                blender_scene/py_compile_error.log
+
+              exit 1
+            fi
+
+            REPAIR=$(
+              (
+                REPAIR + 1
+              )
+            )
+
+            echo \
+              "Pre-execution Blender repair ${REPAIR}/${MAX_REPAIRS}"
+
+            python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          script = Path(
+              "blender_scene/blender_scene.py"
+          ).read_text(
+              encoding="utf-8"
+          )
+
+          error = Path(
+              "blender_scene/py_compile_error.log"
+          ).read_text(
+              encoding="utf-8",
+              errors="replace"
+          )
+
+          story = Path(
+              "story.json"
+          ).read_text(
+              encoding="utf-8"
+          )
+
+          prompt = f"""Repair the following Blender 4.0.2 Python script.
+
+          Return ONLY the complete corrected Python source code. No Markdown. No code fences. No explanation.
+
+          The previous source has a syntax error. Fix the exact syntax/indentation problem without removing the visual story or simplifying it into a primitive test.
+
+          Hard requirements:
+          - valid Python syntax for Blender 4.0.2
+          - import bpy
+          - stable Blender APIs
+          - bpy.ops.mesh.primitive_plane_add for planes
+          - never bpy.ops.mesh.create_plane
+          - never use numeric material-node input indexes
+          - use named node sockets only
+          - RGBA colors as 4-tuples
+          - numeric node values as floats
+          - create camera before animation
+          - set scene.camera
+          - at least one light
+          - scene.render.engine = 'BLENDER_EEVEE'
+          - never BLENDER_EEVEE_NEXT
+          - 1080x1920, 24 FPS
+          - no simulations, particles, geometry nodes, volumetrics, cloth, smoke, fire, rigid bodies
+          - no external files, addons, downloads, textures, fonts, images, sounds or network access
+          - no narration, subtitles or voice
+          - expressive animated characters, readable silhouettes and deliberate camera work
+          - save to /tmp/diboo_story_scene.blend
+          - verify os.path.exists after saving
+          - print the required DIBOO diagnostics
+
+          STORY:
+          {story}
+
+          PYTHON ERROR:
+          {error}
+
+          SOURCE:
+          {script}
+          """
+
+          Path(
+              "repair_request.json"
+          ).write_text(
+              json.dumps(
+                  {
+                      "model":
+                          "gemini-3.5-flash-lite",
+                      "input":
+                          prompt
+                  },
+                  ensure_ascii=False
+              ),
+              encoding="utf-8"
+          )
+          PY
+
+            set +e
+
+            RESPONSE="$(
+              curl -sS \
+                --connect-timeout 20 \
+                --max-time 180 \
+                -w '\n__HTTP_STATUS__:%{http_code}' \
+                -H \
+                  "x-goog-api-key: ${GEMINI_API_KEY}" \
+                -H \
+                  "Content-Type: application/json" \
+                -X POST \
+                "https://generativelanguage.googleapis.com/v1beta/interactions" \
+                -d @repair_request.json
+            )"
+
+            CURL_EXIT=$?
+
+            set -e
+
+            HTTP_STATUS="$(
+              printf '%s\n' "${RESPONSE}" |
+              sed \
+                -n \
+                's/^__HTTP_STATUS__://p' |
+              tail -n 1
+            )"
+
+            BODY="$(
+              printf '%s\n' "${RESPONSE}" |
+              sed '/^__HTTP_STATUS__:/d'
+            )"
+
+            printf '%s\n' "${BODY}" \
+              > blender_scene/repair_response.json
+
+            [
+              "${CURL_EXIT}" -eq 0
+            ] && [
+              "${HTTP_STATUS}" = "200"
+            ] || {
+              echo "Repair API failed."
+              cat blender_scene/repair_response.json
+              exit 1
+            }
+
+            python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          response = json.loads(
+              Path(
+                  "blender_scene/repair_response.json"
+              ).read_text(
+                  encoding="utf-8"
+              )
+          )
+
+          texts = []
+
+          def walk(x):
+
+              if isinstance(x, dict):
+
+                  if (
+                      x.get("type") == "text"
+                      and isinstance(
+                          x.get("text"),
+                          str
+                      )
+                  ):
+                      texts.append(
+                          x["text"]
+                      )
+
+                  for v in x.values():
+                      walk(v)
+
+              elif isinstance(x, list):
+
+                  for v in x:
+                      walk(v)
+
+          walk(response)
+
+          text = max(
+              (
+                  x.strip()
+                  for x in texts
+                  if x.strip()
+              ),
+              key=len,
+              default=""
+          )
+
+          if not text:
+              raise RuntimeError(
+                  "Repair response contained no text."
+              )
+
+          if text.startswith(
+              "```python"
+          ):
+              text = text[
+                  len("```python"):
+              ]
+
+          elif text.startswith(
+              "```"
+          ):
+              text = text[3:]
+
+          if text.rstrip().endswith(
+              "```"
+          ):
+              text = text.rstrip()[:-3]
+
+          text = text.strip()
+
+          Path(
+              "blender_scene/blender_scene.py"
+          ).write_text(
+              text + "\n",
+              encoding="utf-8"
+          )
+          PY
+
+          done
+
+      - name: Generate Blender scene with runtime auto-repair
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
 
           rm -f \
             /tmp/diboo_story_scene.blend \
-            blender_scene/blender_scene_error.log
+            blender_scene/blender_run.log
 
-          MAX_REPAIRS=3
+          MAX_REPAIRS="${BLENDER_MAX_REPAIRS}"
           REPAIR=0
 
-          while true
-          do
+          while true; do
 
-            echo ""
             echo "========================================"
-            echo "BLENDER GENERATION ATTEMPT"
-            echo "$((REPAIR + 1))"
+            echo \
+              "BLENDER GENERATION ATTEMPT $((REPAIR + 1))"
+            echo \
+              "VIDEO ${VIDEO_NUMBER}"
             echo "========================================"
 
             rm -f \
@@ -650,22 +1210,23 @@ jobs:
 
             blender \
               -b \
-              --python blender_scene/blender_scene.py \
-              > blender_scene/blender_run.log 2>&1
+              --python \
+              blender_scene/blender_scene.py \
+              > blender_scene/blender_run.log \
+              2>&1
 
-            BLENDER_EXIT=$?
+            EXIT_CODE=$?
 
             set -e
 
-            echo ""
-            echo "BLENDER EXIT CODE:"
-            echo "$BLENDER_EXIT"
+            if [
+              "${EXIT_CODE}" -eq 0
+            ] && [
+              -s /tmp/diboo_story_scene.blend
+            ]; then
 
-            if [ "$BLENDER_EXIT" -eq 0 ] && \
-               [ -s /tmp/diboo_story_scene.blend ]; then
-
-              echo ""
-              echo "DIBOO BLENDER SCENE READY"
+              echo \
+                "DIBOO BLENDER SCENE READY"
 
               ls -lh \
                 /tmp/diboo_story_scene.blend
@@ -673,10 +1234,10 @@ jobs:
               break
             fi
 
-            echo ""
-            echo "BLENDER SCENE GENERATION FAILED"
+            echo \
+              "BLENDER FAILED."
 
-            tail -n 150 \
+            tail -n 180 \
               blender_scene/blender_run.log \
               || true
 
@@ -684,17 +1245,22 @@ jobs:
               blender_scene/blender_run.log \
               blender_scene/blender_scene_error.log
 
-            if [ "$REPAIR" -ge "$MAX_REPAIRS" ]; then
-              echo ""
-              echo "Maximum Blender repair attempts reached."
+            if [
+              "${REPAIR}" -ge \
+              "${MAX_REPAIRS}"
+            ]; then
+
+              echo \
+                "Maximum runtime Blender repairs reached."
+
               exit 1
             fi
 
-            REPAIR=$((REPAIR + 1))
-
-            echo ""
-            echo "Sending Blender error to Gemini..."
-            echo "Repair attempt: $REPAIR / $MAX_REPAIRS"
+            REPAIR=$(
+              (
+                REPAIR + 1
+              )
+            )
 
             python3 - <<'PY'
           import json
@@ -713,208 +1279,235 @@ jobs:
               errors="replace"
           )
 
-          if len(error) > 16000:
-              error = error[-16000:]
+          story = Path(
+              "story.json"
+          ).read_text(
+              encoding="utf-8"
+          )
 
-          prompt = f"""
-          You are repairing a Blender 4.0.2 Python script for Project_Diboo.
+          if len(error) > 18000:
+              error = error[-18000:]
 
-          Return ONLY the complete corrected Python script.
-          No Markdown.
-          No code fences.
-          No explanations.
+          prompt = f"""Repair this Blender 4.0.2 Project_Diboo script after a background execution failure.
+
+          Return ONLY the complete corrected Python source. No Markdown, no code fences, no explanation.
+
+          Preserve the intended story and visual quality. Do not replace the animation with a primitive technical demo.
 
           Requirements:
+          - valid Blender 4.0.2 background script
+          - import bpy
+          - stable APIs only
+          - primitive_plane_add for planes
+          - never mesh.create_plane
+          - never numeric material-node input indexes
+          - named node sockets only
+          - RGBA color tuples
+          - float values as floats
+          - camera created before animation
+          - scene.camera assigned
+          - at least one light
+          - scene.render.engine = 'BLENDER_EEVEE'
+          - never BLENDER_EEVEE_NEXT
+          - 1080x1920, 24 FPS
+          - no simulations/particles/geometry nodes/volumetrics/cloth/smoke/fire/rigid bodies
+          - no external assets, downloads, network or audio
+          - expressive characters, readable silhouettes, strong poses and deliberate camera work
+          - save /tmp/diboo_story_scene.blend
+          - verify the saved file with os.path.exists
+          - print the required DIBOO diagnostics
+          - script must not render
 
-          - Blender 4.0.2 background mode.
-          - import bpy.
-          - use stable bpy APIs.
-          - never use bpy.ops.mesh.create_plane.
-          - use bpy.ops.mesh.primitive_plane_add for planes.
-          - never access material node inputs by numeric index.
-          - use named node sockets.
-          - color sockets receive RGBA tuples.
-          - float sockets receive floats.
-          - create camera.
-          - set scene.camera.
-          - create at least one light.
-          - use scene.render.engine = 'BLENDER_EEVEE'.
-          - NEVER use BLENDER_EEVEE_NEXT.
-          - 1080x1920.
-          - 24 FPS.
-          - preserve visual story.
-          - preserve character continuity.
-          - expressive poses.
-          - readable silhouettes.
-          - no cardboard-like presentation.
-          - no static mannequin characters.
-          - no simulations.
-          - no external assets.
-          - no downloads.
-          - no audio.
-          - no narration.
-          - no subtitles.
-          - save to /tmp/diboo_story_scene.blend.
-          - verify the saved file exists.
-          - print:
-            DIBOO BLENDER SCENE CREATED
-            STORY TITLE
-            TOTAL FRAMES
-            FPS
-            RESOLUTION
-            BLENDER SCENE READY
-
-          PREVIOUS SCRIPT:
-
-          {script}
+          STORY:
+          {story}
 
           BLENDER ERROR:
-
           {error}
-          """
 
-          request = {
-              "model": "gemini-3.5-flash-lite",
-              "input": prompt
-          }
+          CURRENT SCRIPT:
+          {script}
+          """
 
           Path(
               "repair_request.json"
           ).write_text(
               json.dumps(
-                  request,
+                  {
+                      "model":
+                          "gemini-3.5-flash-lite",
+                      "input":
+                          prompt
+                  },
                   ensure_ascii=False
               ),
               encoding="utf-8"
           )
           PY
 
-            REPAIR_RESPONSE=$(curl -sS \
-              --fail-with-body \
-              -H "x-goog-api-key: $GEMINI_API_KEY" \
-              -H "Content-Type: application/json" \
-              -X POST \
-              "https://generativelanguage.googleapis.com/v1beta/interactions" \
-              -d @repair_request.json)
+            set +e
 
-            echo "$REPAIR_RESPONSE" \
+            RESPONSE="$(
+              curl -sS \
+                --connect-timeout 20 \
+                --max-time 180 \
+                -w '\n__HTTP_STATUS__:%{http_code}' \
+                -H \
+                  "x-goog-api-key: ${GEMINI_API_KEY}" \
+                -H \
+                  "Content-Type: application/json" \
+                -X POST \
+                "https://generativelanguage.googleapis.com/v1beta/interactions" \
+                -d @repair_request.json
+            )"
+
+            CURL_EXIT=$?
+
+            set -e
+
+            HTTP_STATUS="$(
+              printf '%s\n' "${RESPONSE}" |
+              sed \
+                -n \
+                's/^__HTTP_STATUS__://p' |
+              tail -n 1
+            )"
+
+            BODY="$(
+              printf '%s\n' "${RESPONSE}" |
+              sed '/^__HTTP_STATUS__:/d'
+            )"
+
+            printf '%s\n' "${BODY}" \
               > blender_scene/repair_response.json
+
+            if [
+              "${CURL_EXIT}" -ne 0
+            ] || [
+              "${HTTP_STATUS}" != "200"
+            ]; then
+
+              cat \
+                blender_scene/repair_response.json
+
+              exit 1
+            fi
 
             python3 - <<'PY'
           import json
           from pathlib import Path
 
-          with open(
-              "blender_scene/repair_response.json",
-              "r",
-              encoding="utf-8"
-          ) as f:
-              response = json.load(f)
+          response = json.loads(
+              Path(
+                  "blender_scene/repair_response.json"
+              ).read_text(
+                  encoding="utf-8"
+              )
+          )
 
-          output_text = None
+          texts = []
 
-          for step in response.get("steps", []):
-              if step.get("type") != "model_output":
-                  continue
+          def walk(x):
 
-              for content in step.get("content", []):
-                  if content.get("type") == "text":
-                      text = content.get(
-                          "text",
-                          ""
-                      ).strip()
+              if isinstance(x, dict):
 
-                      if text:
-                          output_text = text
-                          break
+                  if (
+                      x.get("type") == "text"
+                      and isinstance(
+                          x.get("text"),
+                          str
+                      )
+                  ):
+                      texts.append(
+                          x["text"]
+                      )
 
-              if output_text:
-                  break
+                  for v in x.values():
+                      walk(v)
 
-          if not output_text:
+              elif isinstance(x, list):
+
+                  for v in x:
+                      walk(v)
+
+          walk(response)
+
+          text = max(
+              (
+                  x.strip()
+                  for x in texts
+                  if x.strip()
+              ),
+              key=len,
+              default=""
+          )
+
+          if not text:
               raise RuntimeError(
-                  "Gemini repair response contained no script."
+                  "Gemini repair response contained no text."
               )
 
-          if output_text.startswith("```python"):
-              output_text = output_text[
+          if text.startswith(
+              "```python"
+          ):
+              text = text[
                   len("```python"):
               ]
 
-          elif output_text.startswith("```"):
-              output_text = output_text[3:]
+          elif text.startswith(
+              "```"
+          ):
+              text = text[3:]
 
-          if output_text.rstrip().endswith("```"):
-              output_text = output_text.rstrip()[:-3]
-
-          output_text = output_text.strip()
-
-          if not output_text:
-              raise RuntimeError(
-                  "Gemini returned empty repaired script."
-              )
+          if text.rstrip().endswith(
+              "```"
+          ):
+              text = text.rstrip()[:-3]
 
           Path(
               "blender_scene/blender_scene.py"
           ).write_text(
-              output_text,
+              text.strip() + "\n",
               encoding="utf-8"
-          )
-
-          print(
-              "GEMINI REPAIRED BLENDER SCRIPT RECEIVED"
-          )
-
-          print(
-              "Characters:",
-              len(output_text)
           )
           PY
 
             python3 -m py_compile \
               blender_scene/blender_scene.py
 
-            echo "Repaired Blender script syntax: PASSED"
-
           done
 
-
-      # ============================================================
-      # 8. CONFIGURE RENDER
-      # ============================================================
-
-      - name: Configure fast Blender render
+      - name: Configure render
+        shell: bash
         run: |
-          set -euo pipefail
+          set -Eeuo pipefail
 
-          DURATION=$(cat /tmp/diboo_duration.txt)
+          DURATION="$(
+            cat /tmp/diboo_duration.txt
+          )"
 
-          # CORRECT BASH ARITHMETIC
-          END_FRAME=$((DURATION * 24))
-
-          echo "========================================"
-          echo "DIBOO FAST BLENDER RENDER"
-          echo "========================================"
-
-          echo "DURATION: ${DURATION}s"
-          echo "END FRAME: ${END_FRAME}"
+          END_FRAME=$(
+            (
+              DURATION * 24
+            )
+          )
 
           cat > blender_scene/configure_render.py <<'PY'
           import bpy
           import os
 
-          duration_file = "/tmp/diboo_duration.txt"
-
           with open(
-              duration_file,
+              "/tmp/diboo_duration.txt",
               "r",
               encoding="utf-8"
           ) as f:
-              duration = int(f.read().strip())
+              duration = int(
+                  f.read().strip()
+              )
 
           scene = bpy.context.scene
 
-          scene.render.engine = "BLENDER_EEVEE"
+          scene.render.engine = \
+              "BLENDER_EEVEE"
 
           scene.render.resolution_x = 1080
           scene.render.resolution_y = 1920
@@ -923,92 +1516,87 @@ jobs:
           scene.render.fps = 24
 
           scene.frame_start = 1
-          scene.frame_end = duration * scene.render.fps
+          scene.frame_end = \
+              duration * scene.render.fps
 
-          scene.render.image_settings.file_format = "PNG"
+          scene.render.image_settings.file_format = \
+              "PNG"
 
-          if hasattr(scene, "eevee"):
+          if scene.camera is None:
+              raise RuntimeError(
+                  "Scene has no active camera."
+              )
+
+          if hasattr(
+              scene,
+              "eevee"
+          ):
               try:
                   scene.eevee.taa_render_samples = 8
               except Exception:
                   pass
 
-          output_path = "/tmp/diboo_story_scene.blend"
+          path = \
+              "/tmp/diboo_story_scene.blend"
 
           bpy.ops.wm.save_as_mainfile(
-              filepath=output_path
+              filepath=path
           )
 
-          if not os.path.exists(output_path):
+          if not os.path.exists(path):
               raise RuntimeError(
-                  "ERROR: Blender scene was not saved."
+                  "Scene save failed."
               )
 
-          print("================================")
-          print("DIBOO FAST RENDER CONFIGURATION READY")
-          print("================================")
-
-          print("DURATION:")
-          print(duration)
-
-          print("RENDER ENGINE:")
-          print(scene.render.engine)
-
-          print("RESOLUTION:")
-          print("1080x1920")
-
-          print("FPS:")
-          print(scene.render.fps)
-
-          print("FRAME START:")
-          print(scene.frame_start)
-
-          print("FRAME END:")
-          print(scene.frame_end)
-
-          print("TOTAL EXPECTED FRAMES:")
           print(
-              scene.frame_end -
-              scene.frame_start +
-              1
+              "DIBOO FAST RENDER CONFIGURATION READY"
           )
 
-          print("================================")
-          print("DIBOO BLENDER SCENE SAVED")
-          print("================================")
+          print(
+              "DURATION:",
+              duration
+          )
+
+          print(
+              "FRAME_END:",
+              scene.frame_end
+          )
+
+          print(
+              "RESOLUTION: 1080x1920"
+          )
+
+          print(
+              "FPS:",
+              scene.render.fps
+          )
           PY
 
           blender \
             -b \
             /tmp/diboo_story_scene.blend \
-            --python blender_scene/configure_render.py
+            --python \
+            blender_scene/configure_render.py
 
           test -s \
             /tmp/diboo_story_scene.blend
 
-          ls -lh \
-            /tmp/diboo_story_scene.blend
-
-
-      # ============================================================
-      # 9. RENDER COMPLETE ANIMATION
-      # ============================================================
-
-      - name: Render complete Project_Diboo animation
+      - name: Render complete animation
+        shell: bash
         run: |
-          set -euo pipefail
+          set -Eeuo pipefail
 
-          DURATION=$(cat \
-            /tmp/diboo_duration.txt)
+          DURATION="$(
+            cat /tmp/diboo_duration.txt
+          )"
 
-          # CORRECT BASH ARITHMETIC
-          END_FRAME=$((DURATION * 24))
+          END_FRAME=$(
+            (
+              DURATION * 24
+            )
+          )
 
-          EXPECTED_FRAMES=$END_FRAME
-
-          echo "========================================"
-          echo "DIBOO FULL ANIMATION RENDER"
-          echo "========================================"
+          EXPECTED_FRAMES="${END_FRAME}"
 
           rm -rf \
             /tmp/diboo_render
@@ -1016,117 +1604,143 @@ jobs:
           mkdir -p \
             /tmp/diboo_render
 
-          echo "DURATION: ${DURATION}s"
-          echo "FRAME START: 1"
-          echo "FRAME END: ${END_FRAME}"
-          echo "TOTAL EXPECTED FRAMES: ${EXPECTED_FRAMES}"
+          RENDER_OK=0
 
-          blender \
-            -b \
-            /tmp/diboo_story_scene.blend \
-            -o /tmp/diboo_render/frame_ \
-            -F PNG \
-            -s 1 \
-            -e "$END_FRAME" \
-            -a
+          for ATTEMPT in 1 2; do
 
-          echo ""
-          echo "DIBOO FULL ANIMATION RENDER FINISHED"
-
-          FRAME_COUNT=$(
-            find \
-              /tmp/diboo_render \
-              -maxdepth 1 \
-              -type f \
-              -name "*.png" \
-              | wc -l
-          )
-
-          echo ""
-          echo "TOTAL PNG FRAMES:"
-          echo "$FRAME_COUNT"
-
-          if [ "$FRAME_COUNT" -ne "$EXPECTED_FRAMES" ]; then
             echo \
-              "ERROR: Expected exactly ${EXPECTED_FRAMES} PNG frames."
+              "Render attempt ${ATTEMPT}/2"
 
-            exit 1
-          fi
+            rm -f \
+              /tmp/diboo_render/*.png
 
-          echo ""
-          echo "DIBOO RENDER OUTPUT READY"
+            set +e
 
+            blender \
+              -b \
+              /tmp/diboo_story_scene.blend \
+              -o \
+              /tmp/diboo_render/frame_ \
+              -F PNG \
+              -s 1 \
+              -e "${END_FRAME}" \
+              -a
 
-      # ============================================================
-      # 10. VERIFY RENDER
-      # ============================================================
+            EXIT_CODE=$?
 
-      - name: Verify complete animation render
+            set -e
+
+            FRAME_COUNT="$(
+              find \
+                /tmp/diboo_render \
+                -maxdepth 1 \
+                -type f \
+                -name '*.png' |
+              wc -l
+            )"
+
+            if [
+              "${EXIT_CODE}" -eq 0
+            ] && [
+              "${FRAME_COUNT}" -eq \
+              "${EXPECTED_FRAMES}"
+            ]; then
+
+              RENDER_OK=1
+              break
+            fi
+
+            echo \
+              "Render attempt failed."
+
+            echo \
+              "exit=${EXIT_CODE}"
+
+            echo \
+              "frames=${FRAME_COUNT}/${EXPECTED_FRAMES}"
+
+            sleep 5
+          done
+
+          [
+            "${RENDER_OK}" -eq 1
+          ] || exit 1
+
+          echo \
+            "DIBOO FULL ANIMATION RENDER: PASSED"
+
+      - name: Verify render integrity
+        shell: bash
         run: |
-          set -euo pipefail
+          set -Eeuo pipefail
 
-          DURATION=$(cat \
-            /tmp/diboo_duration.txt)
+          DURATION="$(
+            cat /tmp/diboo_duration.txt
+          )"
 
-          # FIX DEFINITIVO:
-          # NO usar:
-          # EXPECTED_FRAMES=$( (DURATION * 24) )
-          #
-          # Usar:
-          EXPECTED_FRAMES=$((DURATION * 24))
+          EXPECTED_FRAMES=$(
+            (
+              DURATION * 24
+            )
+          )
 
-          echo "========================================"
-          echo "DIBOO COMPLETE RENDER VERIFICATION"
-          echo "========================================"
-
-          test -d \
-            /tmp/diboo_render
-
-          FRAME_COUNT=$(
+          FRAME_COUNT="$(
             find \
               /tmp/diboo_render \
               -maxdepth 1 \
               -type f \
-              -name "*.png" \
-              | wc -l
-          )
+              -name '*.png' |
+            wc -l
+          )"
 
-          echo "PNG FRAME COUNT:"
-          echo "$FRAME_COUNT"
+          [
+            "${FRAME_COUNT}" -eq \
+            "${EXPECTED_FRAMES}"
+          ]
 
-          echo "EXPECTED:"
-          echo "$EXPECTED_FRAMES"
+          FIRST="$(
+            find \
+              /tmp/diboo_render \
+              -maxdepth 1 \
+              -type f \
+              -name 'frame_*.png' |
+            sort |
+            head -n 1
+          )"
 
-          if [ "$FRAME_COUNT" -ne "$EXPECTED_FRAMES" ]; then
-            echo \
-              "ERROR: Expected ${EXPECTED_FRAMES} frames."
+          LAST="$(
+            find \
+              /tmp/diboo_render \
+              -maxdepth 1 \
+              -type f \
+              -name 'frame_*.png' |
+            sort |
+            tail -n 1
+          )"
 
-            exit 1
-          fi
+          test -n "${FIRST}"
+          test -n "${LAST}"
 
-          echo ""
-          echo "TOTAL RENDER SIZE:"
+          echo \
+            "Frames: ${FRAME_COUNT}/${EXPECTED_FRAMES}"
+
+          echo \
+            "First frame: ${FIRST}"
+
+          echo \
+            "Last frame: ${LAST}"
+
           du -sh \
             /tmp/diboo_render
 
-          echo ""
-          echo "DIBOO COMPLETE ANIMATION RENDER: PASSED"
-
-
-      # ============================================================
-      # 11. CREATE AMBIENT AUDIO
-      # ============================================================
-
-      - name: Create Project_Diboo ambient audio
+      - name: Create ambient audio
+        shell: bash
         run: |
-          set -euo pipefail
+          set -Eeuo pipefail
 
-          echo "========================================"
-          echo "DIBOO AMBIENT AUDIO GENERATION"
-          echo "========================================"
-
-          DURATION=$(cat \
-            /tmp/diboo_duration.txt)
+          DURATION="$(
+            cat /tmp/diboo_duration.txt
+          )"
 
           rm -rf \
             /tmp/diboo_audio
@@ -1139,88 +1753,87 @@ jobs:
           import subprocess
           from pathlib import Path
 
-          with open(
-              "story.json",
-              "r",
-              encoding="utf-8"
-          ) as f:
-              story = json.load(f)
+          story = json.loads(
+              Path(
+                  "story.json"
+              ).read_text(
+                  encoding="utf-8"
+              )
+          )
 
-          scenes = story["scenes"]
+          scenes = story[
+              "scenes"
+          ]
 
           for index, scene in enumerate(
               scenes,
-              start=1
+              1
           ):
 
-              duration = int(scene["duration"])
-
-              music = str(
-                  scene.get("music", {})
-              ).lower()
-
-              output = Path(
-                  f"/tmp/diboo_audio/"
-                  f"scene_{index:02d}_music.wav"
+              duration = int(
+                  scene["duration"]
               )
 
+              music = str(
+                  scene.get(
+                      "music",
+                      {}
+                  )
+              ).lower()
+
               if any(
-                  word in music
-                  for word in [
+                  w in music
+                  for w in (
                       "sad",
                       "lonely",
                       "emotional",
                       "melancholy"
-                  ]
+                  )
               ):
-                  frequencies = \
+                  freqs = \
                       "196+246.94+293.66"
 
               elif any(
-                  word in music
-                  for word in [
+                  w in music
+                  for w in (
                       "tension",
                       "danger",
                       "fear",
                       "suspense"
-                  ]
+                  )
               ):
-                  frequencies = \
+                  freqs = \
                       "164.81+207.65+246.94"
 
               elif any(
-                  word in music
-                  for word in [
+                  w in music
+                  for w in (
                       "happy",
                       "joy",
                       "playful",
                       "fun",
                       "cute"
-                  ]
+                  )
               ):
-                  frequencies = \
+                  freqs = \
                       "261.63+329.63+392.00"
 
-              elif any(
-                  word in music
-                  for word in [
-                      "hope",
-                      "warm",
-                      "comfort",
-                      "relief"
-                  ]
-              ):
-                  frequencies = \
-                      "220+277.18+329.63"
-
               else:
-                  frequencies = \
+                  freqs = \
                       "220+277.18+329.63"
 
-              expression = (
-                  "0.025*sin(2*PI*"
-                  f"({frequencies})/3*t)"
-                  "+0.012*sin(2*PI*110*t)"
+              expr = (
+                  "0.025*sin("
+                  "2*PI*("
+                  f"{freqs}"
+                  ")/3*t)"
+                  "+0.012*sin("
+                  "2*PI*110*t)"
+              )
+
+              out = Path(
+                  f"/tmp/diboo_audio/"
+                  f"scene_{index:02d}_music.wav"
               )
 
               subprocess.run(
@@ -1231,8 +1844,7 @@ jobs:
                       "lavfi",
                       "-i",
                       (
-                          f"aevalsrc="
-                          f"{expression}:"
+                          f"aevalsrc={expr}:"
                           f"s=48000:"
                           f"d={duration}"
                       ),
@@ -1240,33 +1852,30 @@ jobs:
                       "48000",
                       "-ac",
                       "2",
-                      str(output)
+                      str(out)
                   ],
                   check=True
               )
 
-              print(
-                  f"Scene {index}: {duration}s"
-              )
-
-          concat_file = Path(
-              "/tmp/diboo_audio/music_concat.txt"
+          concat = Path(
+              "/tmp/diboo_audio/"
+              "music_concat.txt"
           )
 
-          with concat_file.open(
-              "w",
-              encoding="utf-8"
-          ) as f:
-
-              for index in range(
-                  1,
-                  len(scenes) + 1
-              ):
-                  f.write(
-                      "file "
+          concat.write_text(
+              "".join(
+                  (
+                      f"file "
                       f"'/tmp/diboo_audio/"
-                      f"scene_{index:02d}_music.wav'\n"
+                      f"scene_{i:02d}_music.wav'\n"
                   )
+                  for i in range(
+                      1,
+                      len(scenes) + 1
+                  )
+              ),
+              encoding="utf-8"
+          )
 
           subprocess.run(
               [
@@ -1277,7 +1886,7 @@ jobs:
                   "-safe",
                   "0",
                   "-i",
-                  str(concat_file),
+                  str(concat),
                   "-ar",
                   "48000",
                   "-ac",
@@ -1286,36 +1895,27 @@ jobs:
               ],
               check=True
           )
-
-          print("")
-          print("AMBIENT MUSIC CREATED")
           PY
-
-          echo ""
-          echo "Generating procedural SFX..."
 
           ffmpeg \
             -y \
             -f lavfi \
-            -i "aevalsrc=0.035*sin(2*PI*(600-450*t)*t)*exp(-4*t):s=48000:d=0.8" \
+            -i \
+            "aevalsrc=0.035*sin(2*PI*(600-450*t)*t)*exp(-4*t):s=48000:d=0.8" \
             -ar 48000 \
             -ac 2 \
             /tmp/diboo_audio/sfx.wav
 
-          test -s \
-            /tmp/diboo_audio/sfx.wav
-
-          echo ""
-          echo "Mixing ambient soundtrack..."
-
           ffmpeg \
             -y \
-            -i /tmp/diboo_audio/music.wav \
-            -i /tmp/diboo_audio/sfx.wav \
+            -i \
+            /tmp/diboo_audio/music.wav \
+            -i \
+            /tmp/diboo_audio/sfx.wav \
             -filter_complex \
-            "[0:a]volume=0.22[music];[1:a]volume=0.10,aloop=loop=-1:size=38400[sfx];[music][sfx]amix=inputs=2:duration=first:dropout_transition=2,loudnorm=I=-18:TP=-2:LRA=11[out]" \
+            "[0:a]volume=0.22[m];[1:a]volume=0.10,aloop=loop=-1:size=38400[s];[m][s]amix=inputs=2:duration=first:dropout_transition=2,loudnorm=I=-18:TP=-2:LRA=11[out]" \
             -map "[out]" \
-            -t "$DURATION" \
+            -t "${DURATION}" \
             -ar 48000 \
             -ac 2 \
             -c:a aac \
@@ -1325,85 +1925,80 @@ jobs:
           test -s \
             /tmp/diboo_audio_track.m4a
 
-          echo ""
-          echo "DIBOO AMBIENT AUDIO TRACK READY"
-
-
-      # ============================================================
-      # 12. VERIFY VISUAL ONLY
-      # ============================================================
-
       - name: Verify visual-only production mode
+        shell: bash
         run: |
-          set -euo pipefail
+          set -Eeuo pipefail
 
           python3 - <<'PY'
           import json
+          from pathlib import Path
 
-          with open(
-              "story.json",
-              "r",
-              encoding="utf-8"
-          ) as f:
-              story = json.load(f)
+          story = json.loads(
+              Path(
+                  "story.json"
+              ).read_text(
+                  encoding="utf-8"
+              )
+          )
 
-          forbidden = [
+          forbidden = {
               "narration",
-              "subtitles",
+              "voice",
               "subtitle",
-              "voice"
-          ]
+              "subtitles"
+          }
 
           for key in forbidden:
+
               if key in story:
                   raise RuntimeError(
-                      f"Forbidden field detected: {key}"
+                      f"Forbidden story field: {key}"
                   )
 
-          for index, scene in enumerate(
+          for i, scene in enumerate(
               story["scenes"],
-              start=1
+              1
           ):
 
               for key in forbidden:
+
                   if key in scene:
                       raise RuntimeError(
-                          f"Scene {index} contains "
-                          f"forbidden field: {key}"
+                          f"Forbidden scene field "
+                          f"{key} in scene {i}"
                       )
 
-          print("DIBOO VISUAL-ONLY MODE: PASSED")
-          print("Narration: DISABLED")
-          print("Subtitles: DISABLED")
-          print("Voice: DISABLED")
-          print("Ambient music: ENABLED")
-          print("SFX: ENABLED")
+          print(
+              "DIBOO VISUAL-ONLY MODE: PASSED"
+          )
           PY
 
-
-      # ============================================================
-      # 13. ENCODE FINAL MP4
-      # ============================================================
-
-      - name: Encode final Project_Diboo MP4
+      - name: Encode final MP4
+        shell: bash
         run: |
-          set -euo pipefail
+          set -Eeuo pipefail
 
-          DURATION=$(cat \
-            /tmp/diboo_duration.txt)
+          DURATION="$(
+            cat /tmp/diboo_duration.txt
+          )"
 
-          VIDEO_NAME="Project_Diboo_Video_${VIDEO_NUMBER}"
+          VIDEO_NAME=\
+            "Project_Diboo_Video_${VIDEO_NUMBER}"
 
           MP4="/tmp/${VIDEO_NAME}.mp4"
 
-          rm -f "$MP4"
+          rm -f \
+            "${MP4}"
 
           ffmpeg \
             -y \
             -framerate 24 \
             -start_number 1 \
-            -i /tmp/diboo_render/frame_%04d.png \
-            -i /tmp/diboo_audio_track.m4a \
+            -i \
+            /tmp/diboo_render/frame_%04d.png \
+            -i \
+            /tmp/diboo_audio_track.m4a \
             -map 0:v:0 \
             -map 1:a:0 \
             -c:v libx264 \
@@ -1412,340 +2007,425 @@ jobs:
             -pix_fmt yuv420p \
             -c:a aac \
             -b:a 128k \
-            -t "$DURATION" \
+            -t "${DURATION}" \
             -movflags +faststart \
-            "$MP4"
+            "${MP4}"
 
-          test -s "$MP4"
+          test -s \
+            "${MP4}"
 
           cp \
-            "$MP4" \
+            "${MP4}" \
             "output/${VIDEO_NAME}.mp4"
 
-          echo ""
-          echo "========================================"
-          echo "DIBOO FINAL MP4 CREATED"
-          echo "========================================"
+          ls -lh \
+            "${MP4}"
 
-          ls -lh "$MP4"
-
-
-      # ============================================================
-      # 14. VERIFY FINAL MP4
-      # ============================================================
-
-      - name: Verify final Project_Diboo MP4
+      - name: Verify final MP4
+        shell: bash
         run: |
-          set -euo pipefail
+          set -Eeuo pipefail
 
-          MP4="/tmp/Project_Diboo_Video_${VIDEO_NUMBER}.mp4"
+          MP4=\
+            "/tmp/Project_Diboo_Video_${VIDEO_NUMBER}.mp4"
 
-          test -s "$MP4"
-
-          echo "========================================"
-          echo "DIBOO FINAL MP4 VERIFICATION"
-          echo "========================================"
+          test -s \
+            "${MP4}"
 
           ffprobe \
             -v error \
             -show_entries \
             stream=index,codec_name,codec_type,width,height,r_frame_rate,sample_rate,channels \
             -of default=noprint_wrappers=1 \
-            "$MP4"
-
-          echo ""
+            "${MP4}"
 
           ffprobe \
             -v error \
             -show_entries \
             format=duration,size \
             -of default=noprint_wrappers=1 \
-            "$MP4"
+            "${MP4}"
 
-          VIDEO_STREAMS=$(
+          VIDEO_STREAMS="$(
             ffprobe \
               -v error \
               -select_streams v \
               -show_entries stream=index \
               -of csv=p=0 \
-              "$MP4" \
-              | wc -l
-          )
+              "${MP4}" |
+            wc -l
+          )"
 
-          AUDIO_STREAMS=$(
+          AUDIO_STREAMS="$(
             ffprobe \
               -v error \
               -select_streams a \
               -show_entries stream=index \
               -of csv=p=0 \
-              "$MP4" \
-              | wc -l
-          )
+              "${MP4}" |
+            wc -l
+          )"
 
-          echo ""
-          echo "VIDEO STREAMS:"
-          echo "$VIDEO_STREAMS"
+          [
+            "${VIDEO_STREAMS}" -ge 1
+          ]
 
-          echo "AUDIO STREAMS:"
-          echo "$AUDIO_STREAMS"
+          [
+            "${AUDIO_STREAMS}" -ge 1
+          ]
 
-          if [ "$VIDEO_STREAMS" -lt 1 ]; then
-            echo "ERROR: Final MP4 has no video stream."
-            exit 1
-          fi
+          WIDTH_ACTUAL="$(
+            ffprobe \
+              -v error \
+              -select_streams v:0 \
+              -show_entries stream=width \
+              -of csv=p=0 \
+              "${MP4}"
+          )"
 
-          if [ "$AUDIO_STREAMS" -lt 1 ]; then
-            echo "ERROR: Final MP4 has no audio stream."
-            exit 1
-          fi
+          HEIGHT_ACTUAL="$(
+            ffprobe \
+              -v error \
+              -select_streams v:0 \
+              -show_entries stream=height \
+              -of csv=p=0 \
+              "${MP4}"
+          )"
 
-          echo ""
-          echo "DIBOO FINAL MP4: PASSED"
+          [
+            "${WIDTH_ACTUAL}" = "1080"
+          ]
 
+          [
+            "${HEIGHT_ACTUAL}" = "1920"
+          ]
 
-      # ============================================================
-      # 15. SEND VIDEO TO TELEGRAM
-      # ============================================================
+          echo \
+            "DIBOO FINAL MP4: PASSED"
 
       - name: Send Project_Diboo video to Telegram
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        shell: bash
         run: |
-          set -euo pipefail
+          set -Eeuo pipefail
 
-          echo "========================================"
-          echo "DIBOO TELEGRAM DELIVERY"
-          echo "VIDEO $VIDEO_NUMBER / 10"
-          echo "========================================"
+          test -n \
+            "${TELEGRAM_BOT_TOKEN}"
 
-          MP4="/tmp/Project_Diboo_Video_${VIDEO_NUMBER}.mp4"
+          test -n \
+            "${TELEGRAM_CHAT_ID}"
 
-          test -s "$MP4"
+          ORIGINAL=\
+            "/tmp/Project_Diboo_Video_${VIDEO_NUMBER}.mp4"
 
-          FILE_SIZE=$(stat -c%s "$MP4")
+          SEND_FILE="${ORIGINAL}"
 
-          # CORRECT BASH ARITHMETIC
-          FILE_SIZE_MB=$((FILE_SIZE / 1024 / 1024))
-
-          TITLE=$(python3 - <<'PY'
+          TITLE="$(
+            python3 - <<'PY'
           import json
 
-          with open(
-              "story.json",
-              "r",
-              encoding="utf-8"
-          ) as f:
-              print(
-                  json.load(f)["title"]
-              )
-          PY
+          print(
+              json.load(
+                  open(
+                      "story.json",
+                      encoding="utf-8"
+                  )
+              )["title"]
           )
-
-          DESCRIPTION=$(python3 - <<'PY'
-          import json
-
-          with open(
-              "story.json",
-              "r",
-              encoding="utf-8"
-          ) as f:
-              print(
-                  json.load(f)["description"]
-              )
           PY
-          )
+          )"
 
-          HASHTAGS=$(python3 - <<'PY'
+          DESCRIPTION="$(
+            python3 - <<'PY'
           import json
 
-          with open(
-              "story.json",
-              "r",
-              encoding="utf-8"
-          ) as f:
+          print(
+              json.load(
+                  open(
+                      "story.json",
+                      encoding="utf-8"
+                  )
+              )["description"]
+          )
+          PY
+          )"
 
-              story = json.load(f)
+          HASHTAGS="$(
+            python3 - <<'PY'
+          import json
+
+          s = json.load(
+              open(
+                  "story.json",
+                  encoding="utf-8"
+              )
+          )
 
           print(
               " ".join(
-                  str(x)
-                  for x in story["hashtags"]
+                  map(
+                      str,
+                      s["hashtags"]
+                  )
               )
           )
           PY
+          )"
+
+          CAPTION="$(
+            printf \
+              '🎬 Project_Diboo #%s\n\n%s\n\n%s\n\n%s' \
+              "${VIDEO_NUMBER}" \
+              "${TITLE}" \
+              "${DESCRIPTION}" \
+              "${HASHTAGS}"
+          )"
+
+          CAPTION="$(
+            printf '%s' \
+              "${CAPTION}" |
+            cut -c1-1000
+          )"
+
+          SIZE="$(
+            stat -c%s \
+              "${ORIGINAL}"
+          )"
+
+          if [
+            "${SIZE}" -gt 52400000
+          ]; then
+
+            echo \
+              "Original exceeds safe Telegram size; creating delivery copy."
+
+            DURATION_FLOAT="$(
+              ffprobe \
+                -v error \
+                -show_entries format=duration \
+                -of csv=p=0 \
+                "${ORIGINAL}"
+            )"
+
+            TARGET_KBPS="$(
+              python3 \
+                - "${DURATION_FLOAT}" \
+                <<'PY'
+          import sys
+
+          duration = max(
+              float(sys.argv[1]),
+              1.0
           )
 
-          CAPTION="🎬 Project_Diboo #${VIDEO_NUMBER}
+          kbps = max(
+              900,
+              min(
+                  7000,
+                  int(
+                      (
+                          45 * 1024 * 8 /
+                          duration
+                      ) - 160
+                  )
+              )
+          )
 
-          ${TITLE}
+          print(kbps)
+          PY
+            )"
 
-          ${DESCRIPTION}
+            ffmpeg \
+              -y \
+              -i "${ORIGINAL}" \
+              -vf \
+              "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2" \
+              -c:v libx264 \
+              -preset fast \
+              -b:v "${TARGET_KBPS}k" \
+              -maxrate "${TARGET_KBPS}k" \
+              -bufsize \
+                "$(
+                  (
+                    TARGET_KBPS * 2
+                  )
+                )k" \
+              -c:a aac \
+              -b:a 96k \
+              -movflags +faststart \
+              /tmp/telegram_delivery.mp4
 
-          ${HASHTAGS}"
-
-          echo ""
-          echo "VIDEO:"
-          echo "$VIDEO_NUMBER"
-
-          echo ""
-          echo "TITLE:"
-          echo "$TITLE"
-
-          echo ""
-          echo "SIZE:"
-          echo "${FILE_SIZE_MB} MB"
-
-          if [ "$FILE_SIZE" -le 52428800 ]; then
-
-            echo ""
-            echo "Sending complete video to Telegram..."
-
-            RESPONSE=$(curl -sS \
-              --fail-with-body \
-              -X POST \
-              "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendVideo" \
-              -F "chat_id=${TELEGRAM_CHAT_ID}" \
-              -F "video=@${MP4}" \
-              --form-string "caption=${CAPTION}" \
-              -F "supports_streaming=true")
-
-            echo ""
-            echo "Telegram response:"
-            echo "$RESPONSE"
-
-            echo "$RESPONSE" \
-              | grep -q '"ok":true'
-
-            echo ""
-            echo "DIBOO TELEGRAM VIDEO ${VIDEO_NUMBER}: PASSED"
-
-          else
-
-            echo ""
-            echo "MP4 exceeds configured Telegram upload limit."
-
-            RESPONSE=$(curl -sS \
-              --fail-with-body \
-              -X POST \
-              "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-              -d "chat_id=${TELEGRAM_CHAT_ID}" \
-              --data-urlencode \
-              "text=PROJECT_DIBOO VIDEO ${VIDEO_NUMBER} COMPLETE. Title: ${TITLE}. MP4 size: ${FILE_SIZE_MB} MB. The video is available in the GitHub Actions artifact.")
-
-            echo "$RESPONSE"
-
-            echo "$RESPONSE" \
-              | grep -q '"ok":true'
-
+            SEND_FILE=\
+              "/tmp/telegram_delivery.mp4"
           fi
 
+          FINAL_SIZE="$(
+            stat -c%s \
+              "${SEND_FILE}"
+          )"
 
-      # ============================================================
-      # 16. UPLOAD MP4 ARTIFACT
-      # ============================================================
+          echo \
+            "Telegram file size: ${FINAL_SIZE} bytes"
 
-      - name: Upload Project_Diboo MP4
+          if [
+            "${FINAL_SIZE}" -gt 52428800
+          ]; then
+
+            echo \
+              "Telegram delivery copy is still too large."
+
+            echo \
+              "The original MP4 remains available as the artifact."
+
+            exit 1
+          fi
+
+          SUCCESS=0
+
+          for ATTEMPT in 1 2 3; do
+
+            echo \
+              "Telegram attempt ${ATTEMPT}/3"
+
+            set +e
+
+            RESPONSE="$(
+              curl -sS \
+                --connect-timeout 20 \
+                --max-time 180 \
+                --retry 0 \
+                -X POST \
+                "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendVideo" \
+                -F \
+                  "chat_id=${TELEGRAM_CHAT_ID}" \
+                -F \
+                  "video=@${SEND_FILE}" \
+                --form-string \
+                  "caption=${CAPTION}" \
+                -F \
+                  "supports_streaming=true"
+            )"
+
+            EXIT_CODE=$?
+
+            set -e
+
+            echo \
+              "${RESPONSE}"
+
+            if [
+              "${EXIT_CODE}" -eq 0
+            ] && printf '%s' \
+              "${RESPONSE}" |
+              grep -q '"ok":true'
+            then
+
+              SUCCESS=1
+              break
+            fi
+
+            sleep \
+              $(
+                (
+                  ATTEMPT * 5
+                )
+              )
+          done
+
+          [
+            "${SUCCESS}" -eq 1
+          ] || {
+            echo \
+              "Telegram delivery failed."
+            exit 1
+          }
+
+          echo \
+            "DIBOO TELEGRAM VIDEO ${VIDEO_NUMBER}: PASSED"
+
+      - name: Upload MP4 artifact
         uses: actions/upload-artifact@v4
-
         with:
           name: Project_Diboo_Video_${{ matrix.video_number }}
-
           path: output/Project_Diboo_Video_${{ matrix.video_number }}.mp4
-
           if-no-files-found: error
-
           retention-days: 7
 
-
-      # ============================================================
-      # 17. UPLOAD METADATA
-      # ============================================================
-
-      - name: Upload Project_Diboo metadata
+      - name: Upload metadata and diagnostics
+        if: always()
         uses: actions/upload-artifact@v4
-
         with:
           name: Project_Diboo_Metadata_${{ matrix.video_number }}
-
           path: |
             story.json
             blender_scene/blender_scene.py
             blender_scene/blender_run.log
-
-          if-no-files-found: error
-
+            blender_scene/blender_scene_error.log
+            blender_scene/py_compile_error.log
+            blender_scene/repair_response.json
+            package_repair_response.json
+            gemini_response.json
+            gemini_model_output.txt
+          if-no-files-found: ignore
           retention-days: 7
 
-
-      # ============================================================
-      # 18. FINAL VIDEO TEST
-      # ============================================================
-
-      - name: Complete Project_Diboo video test
+      - name: Final Project_Diboo test
+        shell: bash
         run: |
-          set -euo pipefail
+          set -Eeuo pipefail
 
-          DURATION=$(cat \
-            /tmp/diboo_duration.txt)
+          DURATION="$(
+            cat /tmp/diboo_duration.txt
+          )"
 
-          # CORRECT BASH ARITHMETIC
-          FRAMES=$((DURATION * 24))
+          FRAMES=$(
+            (
+              DURATION * 24
+            )
+          )
 
-          MP4="/tmp/Project_Diboo_Video_${VIDEO_NUMBER}.mp4"
+          MP4=\
+            "/tmp/Project_Diboo_Video_${VIDEO_NUMBER}.mp4"
 
-          test -s "$MP4"
+          test -s \
+            "${MP4}"
 
-          echo ""
+          test -s \
+            "output/Project_Diboo_Video_${VIDEO_NUMBER}.mp4"
+
           echo "========================================"
-          echo "PROJECT_DIBOO"
-          echo "VIDEO ${VIDEO_NUMBER} FINAL TEST"
+          echo \
+            "PROJECT_DIBOO VIDEO ${VIDEO_NUMBER}: PASSED"
           echo "========================================"
 
-          echo ""
-          echo "Story generation: PASSED"
-          echo "Visual story validation: PASSED"
-          echo "Blender script validation: PASSED"
-          echo "Blender scene generation: PASSED"
-          echo "Render configuration: PASSED"
-          echo "Full animation render: PASSED"
-          echo "Render verification: PASSED"
-          echo "Ambient music generation: PASSED"
-          echo "Procedural SFX: PASSED"
-          echo "Audio mixing: PASSED"
-          echo "Visual-only mode: PASSED"
-          echo "No narration: PASSED"
-          echo "No subtitles: PASSED"
-          echo "Final MP4 encoding: PASSED"
-          echo "Final MP4 verification: PASSED"
-          echo "Telegram delivery: PASSED"
-          echo "MP4 artifact upload: PASSED"
-          echo "Metadata upload: PASSED"
+          echo \
+            "Duration: ${DURATION}s"
 
-          echo ""
-          echo "DURATION:"
-          echo "${DURATION} seconds"
+          echo \
+            "Frames: ${FRAMES}"
 
-          echo ""
-          echo "FRAMES:"
-          echo "${FRAMES}"
+          echo \
+            "Resolution: 1080x1920"
 
-          echo ""
-          echo "VIDEO:"
-          echo "1080x1920"
-          echo "24 FPS"
-          echo "EEVEE"
+          echo \
+            "FPS: 24"
 
-          echo ""
-          echo "AUDIO:"
-          echo "Ambient music + SFX"
-          echo "No voice"
+          echo \
+            "Engine: EEVEE"
 
-          echo ""
-          echo "TEXT:"
-          echo "No subtitles"
+          echo \
+            "Audio: Ambient music + procedural SFX"
 
-          echo ""
-          echo "========================================"
-          echo "PROJECT_DIBOO VIDEO ${VIDEO_NUMBER}: PASSED"
-          echo "========================================"
+          echo \
+            "Voice: OFF"
+
+          echo \
+            "Subtitles: OFF"
+
+          echo \
+            "Telegram: PASSED"
+
+          echo \
+            "Artifact: PASSED"
